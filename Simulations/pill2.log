@@ -1,0 +1,4 @@
+# Writing all output to: F:\NANDU\Projects\Github\Mini Project\Pill Dispencer\Simulations\pill2.log
+set pad_wire_necking on
+bus diagonal
+fanout 5
