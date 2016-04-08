@@ -1,0 +1,450 @@
+C51 COMPILER V9.54   PILLTES                                                               04/15/2016 01:23:10 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE PILLTES
+OBJECT MODULE PLACED IN .\Objects\pilltes.obj
+COMPILER INVOKED BY: F:\Application\Keil uVision\C51\BIN\C51.EXE pilltes.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND P
+                    -RINT(.\Listings\pilltes.lst) TABS(2) OBJECT(.\Objects\pilltes.obj)
+
+line level    source
+
+   1          #include<reg52.h> 
+   2          #include<intrins.h>
+   3          #include<lcd.h>
+   4          //Memory Module Connections
+   5          sbit sda = P1 ^ 0;
+   6          sbit scl = P1 ^ 1;
+   7          //sbit led=P0^3;
+   8          //sbit ack;
+   9          
+  10          //LCD Module Connections
+  11          sbit RS = P0^4;
+  12          sbit EN = P0^5;
+  13          //sbit D0 = P2^0;
+  14          //sbit D1 = P2^1;
+  15          //sbit D2 = P2^2;
+  16          //sbit D3 = P2^3;
+  17          sbit D4 = P2^4;
+  18          sbit D5 = P2^5;
+  19          sbit D6 = P2^6;
+  20          sbit D7 = P2^7;
+  21          //End LCD Module Connections
+  22          
+  23          sbit sw_1 = P1 ^ 6;
+  24          sbit sw_2 = P1 ^ 7;
+  25          
+  26          
+  27          unsigned char str[60];
+  28          int alarms=0;
+  29          /*
+  30          unsigned char Command_CMGF[]="AT+CMGF=1\r";
+  31          unsigned char CtrlZ=0x1A;
+  32          unsigned char Command_CMGS[]="AT+CMGS =+919446309596\r";
+  33          unsigned char Command_AT[]="AT\r";
+  34          */
+  35          void int_to_str(int num);
+  36          void init_isr(void);
+  37          void disable_isr(void);
+  38          void enable_isr(void);
+  39          /* TODO*/
+  40          void time(void);
+  41          void alarm(void);
+  42          void set_time(void);
+  43          void stepper(int pill,int motor);
+  44          
+  45          
+  46          void delay(int a) 
+  47          {
+  48   1          int i,j;
+  49   1          for (i = 0; i < a; i++) 
+  50   1              for (j = 0; j < 1000; j++);
+  51   1      }
+  52          
+  53          void int_to_str(int num)
+  54          {
+C51 COMPILER V9.54   PILLTES                                                               04/15/2016 01:23:10 PAGE 2   
+
+  55   1        int size,i=0,temp;
+  56   1        while(num!=0)
+  57   1        {
+  58   2          str[i]=num%10 + 48;
+  59   2          num=num/10;
+  60   2          i++;  
+  61   2        }
+  62   1        str[i]='\0';
+  63   1        size=0;
+  64   1        for(i=0;str[i]!='\0';i++);
+  65   1        size=i-1;
+  66   1        for(i=0;i<((size+1)/2);i++)
+  67   1        {
+  68   2          temp = str[i];
+  69   2          str[i] = str[size-i];
+  70   2          str[size-i] = temp;
+  71   2        }
+  72   1      }
+  73          /*
+  74          -----------------------------------------------------------
+  75          void aknowledge() //acknowledge condition
+  76          {
+  77              scl = 1;
+  78              _nop_();
+  79              _nop_();
+  80              scl = 0;
+  81          }
+  82          
+  83          void start() //start condition
+  84          {
+  85              sda = 1;
+  86              scl = 1;
+  87              _nop_(); //No operation
+  88              _nop_();
+  89              sda = 0;
+  90              scl = 0;
+  91          }
+  92          
+  93          void stop() //stop condition
+  94          {
+  95              sda = 0;
+  96              scl = 1;
+  97              _nop_();
+  98              _nop_();
+  99              sda = 1;
+ 100              scl = 0;
+ 101          }
+ 102          -------------------------------------------------------------------
+ 103          */
+ 104          /*
+ 105          void send_byte(unsigned char value) //send byte serially
+ 106          {
+ 107              unsigned int i;
+ 108              unsigned char send;
+ 109              send = value;
+ 110              for (i = 0; i < 8; i++) {
+ 111                  sda = send / 128; //extracting MSB
+ 112                  send = send << 1; //shiftng left
+ 113                  scl = 1;
+ 114                  _nop_();
+ 115                  _nop_();
+ 116                  scl = 0;
+C51 COMPILER V9.54   PILLTES                                                               04/15/2016 01:23:10 PAGE 3   
+
+ 117              }
+ 118              ack = sda; //reading acknowledge
+ 119              sda = 0;
+ 120          }
+ 121          
+ 122          unsigned char read_byte() //reading from EEPROM serially
+ 123          {
+ 124              unsigned int i, read;
+ 125              sda = 1;
+ 126              read = 0;
+ 127              for (i = 0; i < 8; i++) 
+ 128              {
+ 129                  read = read << 1;
+ 130                  scl = 1;
+ 131                  _nop_();
+ 132                  _nop_();
+ 133                  if (sda == 1)
+ 134                      read++;
+ 135                  scl = 0;
+ 136              }
+ 137              sda = 0;
+ 138              return read; //Returns 8 bit data here
+ 139          }
+ 140          
+ 141          void save() //save in EEPROM
+ 142          {
+ 143              unsigned char input1, input2, input3, input4;
+ 144              input1 = 8;
+ 145              input2 = 0;
+ 146              input3 = 5;
+ 147              input4 = 1;
+ 148              start();
+ 149              send_byte(0xA0); //device address
+ 150              aknowledge();
+ 151              send_byte(0x00); //word address
+ 152              aknowledge();
+ 153              send_byte(input1); //send data
+ 154              aknowledge();
+ 155              send_byte(input2);
+ 156              aknowledge();
+ 157              send_byte(input3); //send data
+ 158              aknowledge();
+ 159              send_byte(input4);
+ 160              aknowledge();
+ 161              stop();
+ 162          
+ 163              Lcd4_Cmd(0x86);
+ 164              input1 = input1 + 48;
+ 165              lcd_data(input1);
+ 166              lcd_command(0x87);
+ 167          
+ 168              input2 = input2 + 48;
+ 169              lcd_data(input2);
+ 170              lcd_command(0x88);
+ 171          
+ 172              input3 = input3 + 48;
+ 173              lcd_data(input3);
+ 174              lcd_command(0x89);
+ 175          
+ 176              input4 = input4 + 48;
+ 177              lcd_data(input4);
+ 178              aknowledge();
+C51 COMPILER V9.54   PILLTES                                                               04/15/2016 01:23:10 PAGE 4   
+
+ 179          }
+ 180          
+ 181          void Read() 
+ 182          {
+ 183              unsigned char h, i, j, k, write;
+ 184              start();
+ 185              send_byte(0xA0);
+ 186              aknowledge();
+ 187              send_byte(0x00);
+ 188              aknowledge();
+ 189              start();
+ 190              send_byte(0xA1); //device address
+ 191              aknowledge();
+ 192          
+ 193              h = read_byte();
+ 194              aknowledge();
+ 195          
+ 196              i = read_byte();
+ 197              aknowledge();
+ 198          
+ 199              j = read_byte();
+ 200              aknowledge();
+ 201          
+ 202              k = read_byte();
+ 203              aknowledge();
+ 204              stop();
+ 205          
+ 206          
+ 207          
+ 208              write = h + 48;
+ 209              lcd_command(0xC6);
+ 210              lcd_data(write);
+ 211          
+ 212          
+ 213          
+ 214              lcd_command(0xC7);
+ 215              write = i + 48;
+ 216              lcd_data(write);
+ 217          
+ 218              lcd_command(0xC8);
+ 219              write = j + 48;
+ 220              lcd_data(write);
+ 221          
+ 222              lcd_command(0xC9);
+ 223              write = k + 48;
+ 224              lcd_data(write);
+ 225              aknowledge();
+ 226          }
+ 227          */
+ 228          
+ 229          /*
+ 230          
+ 231          void Lcd_Delay(int a)
+ 232          {
+ 233              int j;
+ 234              int i;
+ 235              for(i=0;i<a;i++)
+ 236              {
+ 237                  for(j=0;j<100;j++)
+ 238                  {
+ 239                  }
+ 240              }
+C51 COMPILER V9.54   PILLTES                                                               04/15/2016 01:23:10 PAGE 5   
+
+ 241          }
+ 242          
+ 243          void Lcd4_Port(char a)
+ 244          {
+ 245            if(a & 1)
+ 246              D4 = 1;
+ 247            else 
+ 248              D4 = 0;
+ 249            
+ 250            if(a & 2)
+ 251              D5 = 1;
+ 252            else
+ 253              D5 = 0;
+ 254            
+ 255            if(a & 4)
+ 256              D6 = 1;
+ 257            else
+ 258              D6 = 0;
+ 259            
+ 260            if(a & 8)
+ 261              D7 = 1;
+ 262            else
+ 263              D7 = 0;
+ 264          }
+ 265          void Lcd4_Cmd(char a)
+ 266          { 
+ 267            RS = 0;             // => RS = 0
+ 268            Lcd4_Port(a);
+ 269            EN  = 1;             // => E = 1
+ 270            Lcd_Delay(5);
+ 271            EN  = 0;             // => E = 0
+ 272          }
+ 273          
+ 274          void Lcd4_Clear()
+ 275          {
+ 276            Lcd4_Cmd(0);
+ 277            Lcd4_Cmd(1);
+ 278          }
+ 279          
+ 280          void Lcd4_Set_Cursor(char a, char b)
+ 281          {
+ 282            char temp,z,y;
+ 283            if(a == 1)
+ 284            {
+ 285              temp = 0x80 + b;
+ 286              z = temp>>4;
+ 287              y = (0x80+b) & 0x0F;
+ 288              Lcd4_Cmd(z);
+ 289              Lcd4_Cmd(y);
+ 290            }
+ 291            else if(a == 2)
+ 292            {
+ 293              temp = 0xC0 + b;
+ 294              z = temp>>4;
+ 295              y = (0xC0+b) & 0x0F;
+ 296              Lcd4_Cmd(z);
+ 297              Lcd4_Cmd(y);
+ 298            }
+ 299          }
+ 300          
+ 301          void Lcd4_Init()
+ 302          {
+C51 COMPILER V9.54   PILLTES                                                               04/15/2016 01:23:10 PAGE 6   
+
+ 303            Lcd4_Port(0x00);
+ 304            Lcd_Delay(200);
+ 305            ///////////// Reset process from datasheet /////////
+ 306            Lcd4_Cmd(0x03);
+ 307            Lcd_Delay(50);
+ 308            Lcd4_Cmd(0x03);
+ 309            Lcd_Delay(110);
+ 310            Lcd4_Cmd(0x03);
+ 311            /////////////////////////////////////////////////////
+ 312            Lcd4_Cmd(0x02);    
+ 313            Lcd4_Cmd(0x02);
+ 314            Lcd4_Cmd(0x08);   
+ 315            Lcd4_Cmd(0x00); 
+ 316            Lcd4_Cmd(0x0C);     
+ 317            Lcd4_Cmd(0x00);    
+ 318            Lcd4_Cmd(0x06);   
+ 319          }
+ 320          
+ 321          void Lcd4_Write_Char(char a)
+ 322          {
+ 323             char temp,y;
+ 324             temp = a&0x0F; 
+ 325             y = a&0xF0;  
+ 326             RS = 1;             // => RS = 1
+ 327             Lcd4_Port(y>>4);             //Data transfer
+ 328             EN = 1;
+ 329             Lcd_Delay(5);
+ 330             EN = 0;
+ 331             Lcd4_Port(temp);
+ 332             EN = 1;
+ 333             Lcd_Delay(5);
+ 334             EN = 0;
+ 335          }
+ 336          
+ 337          void Lcd4_Write_String(char *a)
+ 338          {
+ 339            int i;
+ 340            for(i=0;a[i]!='\0';i++)
+ 341             Lcd4_Write_Char(a[i]);
+ 342          }
+ 343          */
+ 344          
+ 345          void str_to_ascii(unsigned char *ref)
+ 346          {
+ 347   1        int i=0,size=0;
+ 348   1        for(i=0;*ref!='\0';i++)
+ 349   1        {
+ 350   2          str[i]=*ref;
+ 351   2          ref++;
+ 352   2        }
+ 353   1        str[i]='\0';
+ 354   1        size=i-1;
+ 355   1        for(i=0;str[i]!='\0';i++)
+ 356   1        {
+ 357   2          //if(str[i]==' ')
+ 358   2          {
+ 359   3            //str[i]=str[i] + 0x20;
+ 360   3            //return(temp+0x20);
+ 361   3          }
+ 362   2          //else if(str[i]>=0x0a)
+ 363   2          {
+ 364   3            //str[i]=str[i] + 0x80;//- 0xBF;
+C51 COMPILER V9.54   PILLTES                                                               04/15/2016 01:23:10 PAGE 7   
+
+ 365   3            //str[i]=str[i]-0x20;
+ 366   3            //return(temp+0x80);
+ 367   3          }
+ 368   2          //str[i]=str[i]-48;
+ 369   2        }
+ 370   1      }
+ 371          
+ 372          void ISR_INT1(void) interrupt 2
+ 373          {
+ 374   1        //energy++;
+ 375   1      }
+ 376          void isr_init(void)
+ 377          {
+ 378   1        IE = 0x84;
+ 379   1        IT1 = 1;
+ 380   1      }
+ 381          void disable_isr(void)
+ 382          {
+ 383   1        IE=0x04;
+ 384   1      }
+ 385          
+ 386          void enable_isr(void)
+ 387          {
+ 388   1        IE=0x84;
+ 389   1      }
+ 390          
+ 391          
+ 392          void main() 
+ 393          {
+ 394   1          int i;
+ 395   1          Lcd4_Init();
+ 396   1          Lcd4_Clear();
+ 397   1          while (1) 
+ 398   1          {
+ 399   2              Lcd4_Set_Cursor(1, 0);
+ 400   2              Lcd4_Write_String("Pill Dispenser 2");
+ 401   2              delay(100);
+ 402   2              
+ 403   2      //        save();
+ 404   2      //        Read();
+ 405   2      
+ 406   2          }
+ 407   1      }
+*** WARNING C280 IN LINE 394 OF pilltes.c: 'i': unreferenced local variable
+ 408          
+ 409          
+ 410          
+ 411          
+ 412          
+ 413          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    882    ----
+   CONSTANT SIZE    =     17    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     62      23
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

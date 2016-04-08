@@ -1,0 +1,4 @@
+".\Objects\STARTUP.obj",
+".\Objects\eeprom and rtc.obj" 
+TO ".\Objects\pill" 
+PRINT(".\Listings\pill.m51") RAMSIZE(256) 

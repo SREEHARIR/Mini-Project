@@ -1,0 +1,1244 @@
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE PILL
+OBJECT MODULE PLACED IN .\Objects\pill.obj
+COMPILER INVOKED BY: F:\Application\Keil uVision\C51\BIN\C51.EXE pill.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRIN
+                    -T(.\Listings\pill.lst) TABS(2) OBJECT(.\Objects\pill.obj)
+
+line level    source
+
+   1          #include<reg52.h>
+   2          #include<intrins.h>
+   3          
+   4          #define BOX P3 // MSB Box1 , Box2 LSB
+   5          
+   6          sbit RS = P0^4;
+   7          sbit EN = P0^5;
+   8          sbit D0 = P2^0;
+   9          sbit D1 = P2^1;
+  10          sbit D2 = P2^2;
+  11          sbit D3 = P2^3;
+  12          sbit D4 = P2^4;
+  13          sbit D5 = P2^5;
+  14          sbit D6 = P2^6;
+  15          sbit D7 = P2^7;
+  16          
+  17          sbit scl = P0^0;
+  18          sbit sda = P0^1;
+  19          
+  20          sbit sw_1 = P1^2;
+  21          sbit sw_2 = P1^3;
+  22          sbit ir = P1^4;
+  23          sbit buzzer = P1^5;
+  24          
+  25          unsigned char tempchr,mem=0xA0,rtc=0xD0,sec=0x00,min=0x01,hr=0x02,day=0x03;
+  26          int i=0,j=0,fn=0,fn2=0,dat=0,dat_bcd=0,alarms=0,tmpint=0; 
+  27          /*
+  28          fn -> 0-time, 1-set_time, 2-add_alarm(yes/no), 3-remove_alarm(yes/no) 
+  29          */
+  30          /*
+  31          saving in eeprom -> 
+  32          0x00   - num of alarms
+  33          0x01*i - min of alarm i
+  34          0x02*i - hr of alarm i
+  35          0x03*i - day of alarm i
+  36          0x04*i - motor 1 rotation & motor 2 rotation
+  37          */
+  38          char tim[4],timchk[4]; 
+  39          int timi[4];
+  40          /* 
+  41          tim     -> 0-sec,   1-min, 2-hr, 3-day //read from rtc
+  42          timchk  -> 0-motor, 1-min, 2-hr, 3-day //read from mem
+  43          */
+  44          void delay(int i);
+  45          void Lcd_Port(char a);
+  46          void Lcd_Cmd(char a);
+  47          void Lcd_Clear();
+  48          void Lcd_Set_Cursor(char a, char b);
+  49          void Lcd_Init();
+  50          void Lcd_Write_Char(char a);
+  51          void Lcd_Write_String(char *a);
+  52          void start(void);
+  53          void stop();
+  54          void write(unsigned char dat);
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 2   
+
+  55          void ack(void);
+  56          void noack(void);
+  57          unsigned char read();
+  58          void save_i2c(char dev,char addr,char ch);
+  59          char read_i2c(char dev,char addr);
+  60          void time(void);
+  61          void display_time(void);
+  62          void check_alarm(void);
+  63          unsigned char Bcd_to_dec (unsigned char val);
+  64          unsigned char Dec_to_bcd (unsigned char val);
+  65          
+  66            
+  67          // TODO //
+  68          //void interpt(void);
+  69          void funtions(void);
+  70          void motor(int m1,int m2);
+  71          void sort(void);
+  72          void alarm(void);
+  73          void display_alarm(int num);
+  74          void delete_alarm(int num);
+  75          void add_alarm(void);
+  76          void wipe(void);
+  77          // TODO //
+  78          
+  79          void delay(int i)
+  80          {
+  81   1        int j;
+  82   1        while(i--)
+  83   1          for(j=0;j<1000;j++);
+  84   1      }
+  85          
+  86          unsigned char Dec_to_bcd (unsigned char val)
+  87          {
+  88   1        return (( (val/10)<<4) + (val%10));
+  89   1      }
+  90          
+  91          unsigned char Bcd_to_dec (unsigned char val)
+  92          {
+  93   1        return (( (val>>4)*10) + (val%16));
+  94   1      }
+  95          /*
+  96          char lowToASCII(char b) 
+  97          {
+  98            b = b & 0x0f;
+  99            if(b < 10) {
+ 100              //0 is ASCII 48
+ 101              return 48+b;
+ 102            }
+ 103            //A is ASCII 55
+ 104            return 55+b;
+ 105          }
+ 106          
+ 107          char highToASCII(char b)
+ 108          {
+ 109            return lowToASCII(b >> 4);
+ 110          }
+ 111          
+ 112          void time()
+ 113          {
+ 114            tim[0]=read_i2c(rtc,sec);
+ 115            tim[1]=read_i2c(rtc,min);
+ 116            tim[2]=read_i2c(rtc,hr);
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 3   
+
+ 117            tim[3]=read_i2c(rtc,day);
+ 118            
+ 119            //tim[0]=tim[0] & 0x7f;
+ 120            //tim[2]=tim[2] & 0x1f;
+ 121            
+ 122            //timi[0]=Bcd_to_dec(tim[0]);
+ 123            //timi[1]=Bcd_to_dec(tim[1]);
+ 124            //timi[2]=Bcd_to_dec(tim[2]);
+ 125            //timi[3]=Bcd_to_dec(tim[3]);
+ 126            
+ 127            
+ 128          }
+ 129          */
+ 130          void display_time()
+ 131          {
+ 132   1        Lcd_Set_Cursor(2,0);
+ 133   1        Lcd_Write_Char((timi[2] & 0x3f));
+ 134   1        Lcd_Write_Char((timi[2]));
+ 135   1        Lcd_Write_Char(':');
+ 136   1        Lcd_Write_Char((timi[1] & 0x7f));
+ 137   1        Lcd_Write_Char((timi[1]));
+ 138   1        Lcd_Write_Char(':');
+ 139   1        Lcd_Write_Char((timi[0] & 0x7f));
+ 140   1        Lcd_Write_Char((timi[0]));
+ 141   1        Lcd_Write_Char(' ');
+ 142   1        
+ 143   1        if((timi[0] & 0x80) == 0x80)
+ 144   1        Lcd_Write_Char('1');
+ 145   1        
+ 146   1        else
+ 147   1        Lcd_Write_Char('0');
+ 148   1        
+ 149   1        switch(timi[3])
+ 150   1        {
+ 151   2          case 1:
+ 152   2            Lcd_Write_String("SUN");
+ 153   2            break;
+ 154   2          case 2:
+ 155   2            Lcd_Write_String("MON");
+ 156   2            break;
+ 157   2          case 3:
+ 158   2            Lcd_Write_String("TUE");
+ 159   2            break;
+ 160   2          case 4:
+ 161   2            Lcd_Write_String("WED");
+ 162   2            break;
+ 163   2          case 5:
+ 164   2            Lcd_Write_String("THU");
+ 165   2            break;
+ 166   2          case 6:
+ 167   2            Lcd_Write_String("FRI");
+ 168   2            break;
+ 169   2          case 7:
+ 170   2            Lcd_Write_String("SAT");
+ 171   2            break;
+ 172   2          default:
+ 173   2            Lcd_Write_String("ERR");
+ 174   2            break;
+ 175   2        }
+ 176   1      }
+ 177          
+ 178          void check_alarm(void)
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 4   
+
+ 179          {
+ 180   1        alarms=read_i2c(mem,0x00);
+ 181   1        for(i=0;i<alarms;i++)
+ 182   1        {
+ 183   2          for(j=0;j<4;j++)
+ 184   2          {
+ 185   3            timchk[j]=read_i2c(mem,((i*4)+j+1));
+ 186   3          }
+ 187   2          tempchr=((timchk[2]&0xF0)>>4);
+ 188   2          timchk[2]=timchk[2]&0x0F;
+ 189   2          if((timchk[1] == tim[1]) && (timchk[2] == tim[2]) && (timchk[3] == tim[3])) //check min hr day
+ 190   2          {
+ 191   3            timchk[3]+=tempchr;
+ 192   3            tempchr=(tempchr<<4);
+ 193   3            timchk[3]=(timchk[3]|tempchr);
+ 194   3            save_i2c(mem,(((i*4)+(2+1))),timchk[3]);       // save if alarm over in day register bits 7654
+ 195   3            motor(((timchk[0]&0xF0)>>4),(timchk[0]&0x0F));
+ 196   3            alarm();
+ 197   3          }
+ 198   2        }
+ 199   1      }
+ 200          
+ 201          void alarm()
+ 202          {
+ 203   1        while(1)
+ 204   1        {
+ 205   2          buzzer=1;
+ 206   2          if((sw_1==1) || (sw_2==1) || (ir==0))
+ 207   2          {
+ 208   3            buzzer=0;
+ 209   3            while((sw_1==1) && (sw_2==1));
+ 210   3            return;
+ 211   3          }
+ 212   2          tempchr=read_i2c(rtc,min);
+ 213   2          if((tempchr%16) > ((tim[1]%16)+1))
+ 214   2          {
+ 215   3            buzzer=1;
+ 216   3            delay(1);
+ 217   3            buzzer=0;
+ 218   3            delay(1);
+ 219   3          }
+ 220   2          else if((tempchr/16) > ((tim[1]/16)+1))
+ 221   2          {
+ 222   3            buzzer=1;
+ 223   3            delay(1);
+ 224   3            buzzer=0;
+ 225   3            delay(1);
+ 226   3          }
+ 227   2        }
+ 228   1      }
+ 229          void display_alarm(int num)
+ 230          {
+ 231   1        Lcd_Set_Cursor(1,0);
+ 232   1        Lcd_Write_String("Alrm");
+ 233   1        Lcd_Write_Char(num+48);
+ 234   1        for(i=0;i<4;i++)
+ 235   1        {
+ 236   2          timchk[i]=read_i2c(mem,((num*4)+i+1));
+ 237   2        }
+ 238   1        Lcd_Set_Cursor(2,0);
+ 239   1        Lcd_Write_Char(timchk[2]/16+48);
+ 240   1        Lcd_Write_Char(timchk[2]%16+48);
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 5   
+
+ 241   1        Lcd_Write_Char(':');
+ 242   1        Lcd_Write_Char(timchk[1]/16+48);
+ 243   1        Lcd_Write_Char(timchk[1]%16+48);
+ 244   1        Lcd_Write_Char(':');
+ 245   1        Lcd_Write_Char(' ');
+ 246   1        tempchr=(timchk[3]>>4);
+ 247   1        Lcd_Set_Cursor(2,6);
+ 248   1        if(tempchr==1)
+ 249   1        {
+ 250   2          Lcd_Write_String("Everyday  ");
+ 251   2        }
+ 252   1        if(tempchr==2)
+ 253   1        {
+ 254   2          Lcd_Write_String("Every2days");
+ 255   2        }
+ 256   1        if(tempchr==3)
+ 257   1        {
+ 258   2          Lcd_Write_String("Every3days");
+ 259   2        }
+ 260   1        if(tempchr==4)
+ 261   1        {
+ 262   2          Lcd_Write_String("Every4days");
+ 263   2        }
+ 264   1        if(tempchr==7)
+ 265   1        {
+ 266   2          Lcd_Write_String("Every7days");
+ 267   2        }
+ 268   1        tempchr=(timchk[0]&0xF0);
+ 269   1        tempchr=(timchk[0]>>4);
+ 270   1        Lcd_Set_Cursor(2,7);
+ 271   1        Lcd_Write_String("B1-");
+ 272   1        Lcd_Write_Char(tempchr);
+ 273   1        tempchr=(timchk[0]&0x0F);
+ 274   1        Lcd_Write_String("B2-");
+ 275   1        Lcd_Write_Char(tempchr);
+ 276   1      }
+ 277          
+ 278          void delete_alarm(int num)
+ 279          {
+ 280   1        for(i=0;i<alarms;i++)
+ 281   1        {
+ 282   2          for(j=0;j<4;j++)
+ 283   2          {
+ 284   3            timchk[j]=read_i2c(mem,(((num+i+1)*4)+j+1));
+ 285   3          }
+ 286   2          for(j=0;j<4;j++)
+ 287   2          {
+ 288   3            save_i2c(mem,(((num+i)*4)+j+1),timchk[i]);
+ 289   3          }
+ 290   2        }
+ 291   1      }
+ 292          
+ 293          void motor(int m1, int m2)
+ 294          {
+ 295   1        
+ 296   1        for(i=0;i<m1;i++)
+ 297   1        {
+ 298   2          for(j=0;j<4;j++)
+ 299   2          {
+ 300   3            BOX=0x01;
+ 301   3            delay(3);
+ 302   3            BOX=0x04;
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 6   
+
+ 303   3            delay(3);
+ 304   3            BOX=0x02;
+ 305   3            delay(3);
+ 306   3            BOX=0x08;
+ 307   3            delay(3);
+ 308   3          }
+ 309   2        }
+ 310   1        BOX=0x00;
+ 311   1        for(i=0;i<m2;i++)
+ 312   1        {
+ 313   2          for(j=0;j<4;j++)
+ 314   2          {
+ 315   3            BOX=0x10;
+ 316   3            delay(3);
+ 317   3            BOX=0x40;
+ 318   3            delay(3);
+ 319   3            BOX=0x20;
+ 320   3            delay(3);
+ 321   3            BOX=0x80;
+ 322   3            delay(3);
+ 323   3          }
+ 324   2        }
+ 325   1        BOX=0x00;
+ 326   1        
+ 327   1      }
+ 328          void functions()
+ 329          {
+ 330   1        int change=0;
+ 331   1        if(fn==0)
+ 332   1        {
+ 333   2          return;
+ 334   2        }
+ 335   1        time();
+ 336   1        if(fn==1)
+ 337   1        {
+ 338   2          Lcd_Clear();
+ 339   2          Lcd_Set_Cursor(1,0);
+ 340   2          Lcd_Write_String("SET TIME");
+ 341   2          display_time();
+ 342   2          fn2=0;
+ 343   2          while(1)
+ 344   2          {
+ 345   3            if(sw_1==1)
+ 346   3            {
+ 347   4              while(sw_1==1);
+ 348   4              fn++;
+ 349   4              break;
+ 350   4            }
+ 351   3            if(sw_2==1)
+ 352   3            {
+ 353   4              while(sw_2==1);
+ 354   4              if(fn2==0)
+ 355   4              {
+ 356   5                Lcd_Clear();
+ 357   5                Lcd_Set_Cursor(1,0);
+ 358   5                Lcd_Write_String("SET TIME - Hour ");
+ 359   5                //display_time();
+ 360   5                dat=0;
+ 361   5                change=0;
+ 362   5                while(1)
+ 363   5                {
+ 364   6                  if(sw_1==1)
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 7   
+
+ 365   6                  {
+ 366   7                    while(sw_1==1);
+ 367   7                    fn2++;
+ 368   7                    if(change!=0)
+ 369   7                    {
+ 370   8                      dat_bcd=((dat/10)<<4)+((dat%10));
+ 371   8                      save_i2c(rtc,hr,dat);
+ 372   8                      time();
+ 373   8                      change=0;
+ 374   8                    }
+ 375   7                    break;
+ 376   7                  }
+ 377   6                  if(sw_2==1)
+ 378   6                  {
+ 379   7                    change=1;
+ 380   7                    while(sw_2==1);
+ 381   7                    dat++;
+ 382   7                    if(dat>=24)
+ 383   7                    {
+ 384   8                      dat=0;
+ 385   8                    }
+ 386   7                    Lcd_Set_Cursor(2,0);
+ 387   7                    Lcd_Write_Char((dat/10)+48);
+ 388   7                    Lcd_Write_Char((dat%10)+48);
+ 389   7                  }
+ 390   6                }
+ 391   5              }
+ 392   4              if(fn2==1)
+ 393   4              {
+ 394   5                //Lcd_Clear();
+ 395   5                Lcd_Set_Cursor(1,0);
+ 396   5                Lcd_Write_String("SET TIME-Minute");
+ 397   5                //display_time();
+ 398   5                dat=0;
+ 399   5                change=0;
+ 400   5                while(1)
+ 401   5                {
+ 402   6                  if(sw_1==1)
+ 403   6                  {
+ 404   7                    while(sw_1==1);
+ 405   7                    fn2++;
+ 406   7                    if(change!=0)
+ 407   7                    {
+ 408   8                      dat_bcd=((dat/10)<<4)+((dat%10));
+ 409   8                      save_i2c(rtc,min,dat);
+ 410   8                      time();
+ 411   8                      change=0;
+ 412   8                    }
+ 413   7                    break;
+ 414   7                  }
+ 415   6                  if(sw_2==1)
+ 416   6                  {
+ 417   7                    change=1;
+ 418   7                    while(sw_2==1);
+ 419   7                    dat++;
+ 420   7                    if(dat>=60)
+ 421   7                    {
+ 422   8                      dat=0;
+ 423   8                    }
+ 424   7                    Lcd_Set_Cursor(2,3);
+ 425   7                    Lcd_Write_Char((dat/10)+48);
+ 426   7                    Lcd_Write_Char((dat%10)+48);
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 8   
+
+ 427   7                  }
+ 428   6                }
+ 429   5              }
+ 430   4              if(fn2==2)
+ 431   4              {
+ 432   5                Lcd_Clear();
+ 433   5                Lcd_Set_Cursor(1,0);
+ 434   5                Lcd_Write_String("    SET DAY     ");
+ 435   5                //display_time(); 
+ 436   5                Lcd_Set_Cursor(2,9);
+ 437   5                Lcd_Write_String("SUN");
+ 438   5                dat=1;
+ 439   5                change=0;
+ 440   5                while(1)
+ 441   5                {
+ 442   6                  if(sw_1==1)
+ 443   6                  {
+ 444   7                    while(sw_1==1);
+ 445   7                    fn2++;
+ 446   7                    if(change!=0)
+ 447   7                    {
+ 448   8                      dat_bcd=((dat/10)<<4)+((dat%10));
+ 449   8                      save_i2c(rtc,day,dat);
+ 450   8                      time();
+ 451   8                      change=0;
+ 452   8                    }
+ 453   7                    break;
+ 454   7                  }
+ 455   6                  if(sw_2==1)
+ 456   6                  {
+ 457   7                    change=1;
+ 458   7                    while(sw_2==1);
+ 459   7                    dat++;
+ 460   7                    if(dat>=7)
+ 461   7                    {
+ 462   8                      dat=1;
+ 463   8                    }
+ 464   7                    Lcd_Set_Cursor(2,9);
+ 465   7                    switch(dat)
+ 466   7                    {
+ 467   8                      case 1:
+ 468   8                        Lcd_Write_String("SUN");
+ 469   8                        break;
+ 470   8                      case 2:
+ 471   8                        Lcd_Write_String("MON");
+ 472   8                        break;
+ 473   8                      case 3:
+ 474   8                        Lcd_Write_String("TUE");
+ 475   8                        break;
+ 476   8                      case 4:
+ 477   8                        Lcd_Write_String("WED");
+ 478   8                        break;
+ 479   8                      case 5:
+ 480   8                        Lcd_Write_String("THU");
+ 481   8                        break;
+ 482   8                      case 6:
+ 483   8                        Lcd_Write_String("FRI");
+ 484   8                        break;
+ 485   8                      case 7:
+ 486   8                        Lcd_Write_String("SAT");
+ 487   8                        break;
+ 488   8                      default:
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 9   
+
+ 489   8                        Lcd_Write_String("ERR");
+ 490   8                        break;
+ 491   8                    }
+ 492   7                  }
+ 493   6                }
+ 494   5              }
+ 495   4            }
+ 496   3          }
+ 497   2        }
+ 498   1        if(fn==2)
+ 499   1        {
+ 500   2          Lcd_Clear();
+ 501   2          Lcd_Set_Cursor(1,0);
+ 502   2          Lcd_Write_String("   ADD ALARMS   ");
+ 503   2          display_time();
+ 504   2          dat=0;
+ 505   2          change=0;
+ 506   2          while(1)
+ 507   2          {
+ 508   3            if(sw_1==1)
+ 509   3            {
+ 510   4              while(sw_1==1);
+ 511   4              fn++;
+ 512   4              if(change!=0)
+ 513   4              {
+ 514   5                alarms++;
+ 515   5                for(i=0;i<4;i++)
+ 516   5                {
+ 517   6                  save_i2c(mem,((alarms*4)+i+1),timchk[i]);
+ 518   6                }
+ 519   5              }
+ 520   4              break;
+ 521   4            }
+ 522   3            if(sw_2==1)
+ 523   3            {
+ 524   4              while(sw_2==1);
+ 525   4              change=1;
+ 526   4              dat++;
+ 527   4              if(sw_1==1)
+ 528   4              {
+ 529   5                while(sw_1==1);
+ 530   5                i++;
+ 531   5                break;
+ 532   5              }
+ 533   4              if(sw_2==1)
+ 534   4              {
+ 535   5                fn2=0;
+ 536   5                while(sw_2==1);
+ 537   5                if(fn2==0)
+ 538   5                {
+ 539   6                  Lcd_Set_Cursor(2,12);
+ 540   6                  Lcd_Write_String("Hour");
+ 541   6                  Lcd_Set_Cursor(2,0);
+ 542   6                  Lcd_Write_String("00:00:00   ");
+ 543   6                  dat=0;
+ 544   6                  change=0;
+ 545   6                  while(1)
+ 546   6                  {
+ 547   7                    if(sw_1==1)
+ 548   7                    {
+ 549   8                      while(sw_1==1);
+ 550   8                      fn2++;
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 10  
+
+ 551   8                      if(change!=0)
+ 552   8                      {
+ 553   9                        dat_bcd=((dat/10)<<4)+((dat%10));
+ 554   9                        timchk[2]=dat_bcd;
+ 555   9                        //save_i2c(rtc,hr,dat);
+ 556   9                        change=0;
+ 557   9                      }
+ 558   8                      break;
+ 559   8                    }
+ 560   7                    if(sw_2==1)
+ 561   7                    {
+ 562   8                      change=1;
+ 563   8                      while(sw_2==1);
+ 564   8                      dat++;
+ 565   8                      if(dat>=24)
+ 566   8                      {
+ 567   9                        dat=0;
+ 568   9                      }
+ 569   8                      Lcd_Set_Cursor(2,0);
+ 570   8                      Lcd_Write_Char((dat/10)+48);
+ 571   8                      Lcd_Write_Char((dat%10)+48);
+ 572   8                    }
+ 573   7                  }
+ 574   6                }
+ 575   5                if(fn2==1)
+ 576   5                {
+ 577   6                  Lcd_Set_Cursor(2,12);
+ 578   6                  Lcd_Write_String("Min ");
+ 579   6                  Lcd_Set_Cursor(2,3);
+ 580   6                  Lcd_Write_String("00:00   ");
+ 581   6                  dat=0;
+ 582   6                  change=0;
+ 583   6                  while(1)
+ 584   6                  {
+ 585   7                    if(sw_1==1)
+ 586   7                    {
+ 587   8                      while(sw_1==1);
+ 588   8                      fn2++;
+ 589   8                      if(change!=0)
+ 590   8                      {
+ 591   9                        dat_bcd=((dat/10)<<4)+((dat%10));
+ 592   9                        timchk[1]=dat_bcd;
+ 593   9                        //save_i2c(rtc,min,dat);
+ 594   9                        change=0;
+ 595   9                      }
+ 596   8                      break;
+ 597   8                    }
+ 598   7                    if(sw_2==1)
+ 599   7                    {
+ 600   8                      change=1;
+ 601   8                      while(sw_2==1);
+ 602   8                      dat++;
+ 603   8                      if(dat>=60)
+ 604   8                      {
+ 605   9                        dat=0;
+ 606   9                      }
+ 607   8                      Lcd_Set_Cursor(2,3);
+ 608   8                      Lcd_Write_Char((dat/10)+48);
+ 609   8                      Lcd_Write_Char((dat%10)+48);
+ 610   8                    }
+ 611   7                  }
+ 612   6                }
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 11  
+
+ 613   5                if(fn2==2)
+ 614   5                {
+ 615   6                  Lcd_Set_Cursor(2,12);
+ 616   6                  Lcd_Write_String("Day ");
+ 617   6                  Lcd_Set_Cursor(2,0);
+ 618   6                  Lcd_Write_String("Everyday");
+ 619   6                  dat=0;
+ 620   6                  change=0;
+ 621   6                  while(1)
+ 622   6                  {
+ 623   7                    if(sw_1==1)
+ 624   7                    {
+ 625   8                      while(sw_1==1);
+ 626   8                      fn2++;
+ 627   8                      if(change!=0)
+ 628   8                      {
+ 629   9                        dat_bcd=((dat/10)<<4)+((dat%10));
+ 630   9                        timchk[3]=dat_bcd;
+ 631   9                        //save_i2c(rtc,day,dat);
+ 632   9                        change=0;
+ 633   9                      }
+ 634   8                      break;
+ 635   8                    }
+ 636   7                    if(sw_2==1)
+ 637   7                    {
+ 638   8                      change=1;
+ 639   8                      while(sw_2==1);
+ 640   8                      dat++;
+ 641   8                      if(dat>=7)
+ 642   8                      {
+ 643   9                        dat=1;
+ 644   9                      }
+ 645   8                      Lcd_Set_Cursor(2,10); 
+ 646   8                      switch(dat)
+ 647   8                      {
+ 648   9                        case 1: 
+ 649   9                          Lcd_Write_String("Everyday        ");
+ 650   9                          break;
+ 651   9                        case 2:
+ 652   9                          Lcd_Set_Cursor(2,0);  
+ 653   9                          Lcd_Write_String("SUN ");
+ 654   9                          Lcd_Write_String("TUE ");
+ 655   9                          Lcd_Write_String("THU ");
+ 656   9                          Lcd_Write_String("SAT ");
+ 657   9                          break;
+ 658   9                        case 3:
+ 659   9                          Lcd_Set_Cursor(2,0);  
+ 660   9                          Lcd_Write_String("SUN ");
+ 661   9                          Lcd_Write_String("WED ");
+ 662   9                          Lcd_Write_String("SAT ");
+ 663   9                          Lcd_Write_String("    ");
+ 664   9                          break;
+ 665   9                        case 4:
+ 666   9                          Lcd_Set_Cursor(2,0);  
+ 667   9                          Lcd_Write_String("SUN ");
+ 668   9                          Lcd_Write_String("THU ");
+ 669   9                          Lcd_Write_String("        ");
+ 670   9                          break;
+ 671   9                        case 5:
+ 672   9                        case 6:
+ 673   9                        case 7:
+ 674   9                          dat=7;
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 12  
+
+ 675   9                          Lcd_Write_String("SUN ");
+ 676   9                          Lcd_Write_String("            ");
+ 677   9                          break;
+ 678   9                        default:
+ 679   9                          Lcd_Write_String("ERR             ");
+ 680   9                          break;
+ 681   9                      }
+ 682   8                    }
+ 683   7                  }
+ 684   6                }
+ 685   5                if(fn2==3)
+ 686   5                {
+ 687   6                  Lcd_Set_Cursor(2,5);
+ 688   6                  Lcd_Write_String("Box 1 Turns ");
+ 689   6                  Lcd_Set_Cursor(2,0);
+ 690   6                  Lcd_Write_String("00  ");
+ 691   6                  dat=0;
+ 692   6                  change=0;
+ 693   6                  while(1)
+ 694   6                  {
+ 695   7                    if(sw_1==1)
+ 696   7                    {
+ 697   8                      while(sw_1==1);
+ 698   8                      fn2++;
+ 699   8                      if(change!=0)
+ 700   8                      {
+ 701   9                        dat_bcd=((dat/10)<<4)+((dat%10));
+ 702   9                        timchk[0]=(dat_bcd<<4);
+ 703   9                        //save_i2c(rtc,min,dat);
+ 704   9                        change=0;
+ 705   9                      }
+ 706   8                      break;
+ 707   8                    }
+ 708   7                    if(sw_2==1)
+ 709   7                    {
+ 710   8                      change=1;
+ 711   8                      while(sw_2==1);
+ 712   8                      dat++;
+ 713   8                      if(dat>=11)
+ 714   8                      {
+ 715   9                        dat=0;
+ 716   9                      }
+ 717   8                      Lcd_Set_Cursor(2,0);
+ 718   8                      Lcd_Write_Char((dat/10)+48);
+ 719   8                      Lcd_Write_Char((dat%10)+48);
+ 720   8                    }
+ 721   7                  }
+ 722   6                }
+ 723   5                
+ 724   5                if(fn2==4)
+ 725   5                {
+ 726   6                  Lcd_Set_Cursor(2,5);
+ 727   6                  Lcd_Write_String("Box 2 Turns ");
+ 728   6                  Lcd_Set_Cursor(2,0);
+ 729   6                  Lcd_Write_String("00  ");
+ 730   6                  dat=0;
+ 731   6                  change=0;
+ 732   6                  while(1)
+ 733   6                  {
+ 734   7                    if(sw_1==1)
+ 735   7                    {
+ 736   8                      while(sw_1==1);
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 13  
+
+ 737   8                      fn2++;
+ 738   8                      if(change!=0)
+ 739   8                      {
+ 740   9                        dat_bcd=((dat/10)<<4)+((dat%10));
+ 741   9                        timchk[0]+=(dat_bcd);
+ 742   9                        //save_i2c(rtc,min,dat);
+ 743   9                        change=0;
+ 744   9                      }
+ 745   8                      break;
+ 746   8                    }
+ 747   7                    if(sw_2==1)
+ 748   7                    {
+ 749   8                      change=1;
+ 750   8                      while(sw_2==1);
+ 751   8                      dat++;
+ 752   8                      if(dat>=11)
+ 753   8                      {
+ 754   9                        dat=0;
+ 755   9                      }
+ 756   8                      Lcd_Set_Cursor(2,0);
+ 757   8                      Lcd_Write_Char((dat/10)+48);
+ 758   8                      Lcd_Write_Char((dat%10)+48);
+ 759   8                    }
+ 760   7                  }
+ 761   6                }
+ 762   5              }
+ 763   4            }
+ 764   3          }
+ 765   2        }
+ 766   1        if(fn==3)
+ 767   1        {
+ 768   2          Lcd_Clear();
+ 769   2          Lcd_Set_Cursor(1,0);
+ 770   2          Lcd_Write_String(" REMOVE ALARMS  ");
+ 771   2          //display_time();
+ 772   2          dat=0;
+ 773   2          while(1)
+ 774   2          {
+ 775   3            if(sw_1==1)
+ 776   3            {
+ 777   4              while(sw_1==1);
+ 778   4              fn++;
+ 779   4              break;
+ 780   4            }
+ 781   3            if(sw_2==1)
+ 782   3            {
+ 783   4              while(sw_2==1);
+ 784   4              dat++;
+ 785   4              if(alarms==0)
+ 786   4              {
+ 787   5                Lcd_Set_Cursor(2,0);
+ 788   5                Lcd_Write_String("No Alarms SET   ");
+ 789   5                delay(20);
+ 790   5                break;
+ 791   5              }
+ 792   4              for(i=0;i<alarms;i++)
+ 793   4              {
+ 794   5                display_alarm(i);
+ 795   5                while(1)
+ 796   5                {
+ 797   6                  if(sw_1==1)
+ 798   6                  {
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 14  
+
+ 799   7                    while(sw_1==1);
+ 800   7                    break;
+ 801   7                  }
+ 802   6                  if((sw_2)==1)
+ 803   6                  {
+ 804   7                    while(sw_2==1);
+ 805   7                    alarms--;
+ 806   7                    delete_alarm(i);
+ 807   7                    break;
+ 808   7                  }
+ 809   6                }
+ 810   5              }
+ 811   4            }
+ 812   3          }
+ 813   2        }
+ 814   1        //sort();
+ 815   1        if(fn>=4)
+ 816   1        {
+ 817   2          fn=0;
+ 818   2        }
+ 819   1      }
+ 820          
+ 821          void main()
+ 822          {   
+ 823   1          
+ 824   1        Lcd_Init();
+ 825   1        Lcd_Clear();
+ 826   1        Lcd_Set_Cursor(1,0);
+ 827   1        Lcd_Write_String("Pill Dispenser 3.0");
+ 828   1        delay(100);
+ 829   1        fn=0;
+ 830   1        alarms=0;
+ 831   1        
+ 832   1        //save_i2c(mem,0X00,0X00);   // comment this line after first execuiton and upload again 
+ 833   1        
+ 834   1        save_i2c(rtc,sec,0x80);
+ 835   1        
+ 836   1        save_i2c(rtc,min,0x01);
+ 837   1        save_i2c(rtc,hr,0x01 | 0x40);
+ 838   1        save_i2c(rtc,day,0x01);
+ 839   1        save_i2c(rtc,sec,(0x01)&(~0x80));
+ 840   1        
+ 841   1        while(1)
+ 842   1        {
+ 843   2          time();
+ 844   2          display_time();
+ 845   2          //check_alarm();
+ 846   2          if(sw_1 == 1)
+ 847   2          {
+ 848   3            while(sw_1==1);
+ 849   3            fn++;
+ 850   3            Lcd_Set_Cursor(1,15);
+ 851   3            Lcd_Write_Char(fn+48);
+ 852   3            delay(100);
+ 853   3            functions();      
+ 854   3          }
+ 855   2        }
+ 856   1        
+ 857   1        /*
+ 858   1        save_i2c(rtc,sec,0X00);
+ 859   1        save_i2c(rtc,min,0X25);
+ 860   1        save_i2c(rtc,hr,0X08);
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 15  
+
+ 861   1        
+ 862   1        Lcd_Clear();
+ 863   1        Lcd_Set_Cursor(1,0);
+ 864   1          
+ 865   1        for(i=0;i<16;i++)
+ 866   1        {
+ 867   1          //save_i2c(mem,i,i+'a');
+ 868   1          ch=read_i2c(mem,i);
+ 869   1          Lcd_Write_Char(ch) ;
+ 870   1        }
+ 871   1        
+ 872   1        while(1)
+ 873   1        {
+ 874   1          Lcd_Set_Cursor(2,0);
+ 875   1          ch=read_i2c(rtc,hr);
+ 876   1          Lcd_Write_Char(ch/16+48);
+ 877   1          Lcd_Write_Char(ch%16+48);
+ 878   1          Lcd_Write_Char('-');
+ 879   1          ch=read_i2c(rtc,min);
+ 880   1          Lcd_Write_Char(ch/16+48);
+ 881   1          Lcd_Write_Char(ch%16+48);
+ 882   1          Lcd_Write_Char('-');
+ 883   1          ch=read_i2c(rtc,sec);
+ 884   1          Lcd_Write_Char(ch/16+48);
+ 885   1          Lcd_Write_Char(ch%16+48);
+ 886   1        }
+ 887   1        */
+ 888   1        
+ 889   1      }
+ 890          
+ 891          void Lcd_Port(char a)
+ 892          {
+ 893   1        if(a & 1)
+ 894   1          D0 = 1;
+ 895   1        else 
+ 896   1          D0 = 0;
+ 897   1        
+ 898   1        if(a & 2)
+ 899   1          D1 = 1;
+ 900   1        else
+ 901   1          D1 = 0;
+ 902   1        
+ 903   1        if(a & 4)
+ 904   1          D2 = 1;
+ 905   1        else
+ 906   1          D2 = 0;
+ 907   1        
+ 908   1        if(a & 8)
+ 909   1          D3 = 1;
+ 910   1        else
+ 911   1          D3 = 0;
+ 912   1        
+ 913   1        if(a & 16)
+ 914   1          D4 = 1;
+ 915   1        else
+ 916   1          D4 = 0;
+ 917   1      
+ 918   1        if(a & 32)
+ 919   1          D5 = 1;
+ 920   1        else
+ 921   1          D5 = 0;
+ 922   1        
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 16  
+
+ 923   1        if(a & 64)
+ 924   1          D6 = 1;
+ 925   1        else 
+ 926   1          D6 = 0;
+ 927   1        
+ 928   1        if(a & 128)
+ 929   1          D7 = 1;
+ 930   1        else
+ 931   1          D7 = 0;
+ 932   1      }
+ 933          void Lcd_Cmd(char a)
+ 934          { 
+ 935   1        RS = 0;             // => RS = 0
+ 936   1        Lcd_Port(a);             //Data transfer
+ 937   1        EN  = 1;             // => E = 1
+ 938   1        delay(5);
+ 939   1        EN  = 0;             // => E = 0
+ 940   1      }
+ 941          
+ 942          void Lcd_Clear()
+ 943          {
+ 944   1          Lcd_Cmd(1);
+ 945   1      }
+ 946          
+ 947          void Lcd_Set_Cursor(char a, char b)
+ 948          {
+ 949   1        if(a == 1)
+ 950   1          Lcd_Cmd(0x80 + b);
+ 951   1        else if(a == 2)
+ 952   1          Lcd_Cmd(0xC0 + b);
+ 953   1      }
+ 954          
+ 955          void Lcd_Init()
+ 956          {
+ 957   1        Lcd_Port(0x00);
+ 958   1        RS = 0;
+ 959   1        delay(5);
+ 960   1        ///////////// Reset process from datasheet /////////
+ 961   1        Lcd_Cmd(0x30);
+ 962   1        delay(5);
+ 963   1        Lcd_Cmd(0x30);
+ 964   1        delay(5);
+ 965   1        Lcd_Cmd(0x30);
+ 966   1        /////////////////////////////////////////////////////
+ 967   1        Lcd_Cmd(0x38);    //function set
+ 968   1        Lcd_Cmd(0x0C);    //display on,cursor off,blink off
+ 969   1        Lcd_Cmd(0x01);    //clear display
+ 970   1        Lcd_Cmd(0x06);    //entry mode, set increment
+ 971   1      }
+ 972          
+ 973          void Lcd_Write_Char(char a)
+ 974          {
+ 975   1         RS = 1;             // => RS = 1
+ 976   1         Lcd_Port(a);             //Data transfer
+ 977   1         EN  = 1;             // => E = 1
+ 978   1         delay(1);
+ 979   1         EN  = 0;             // => E = 04
+ 980   1      }
+ 981          
+ 982          void Lcd_Write_String(char *a)
+ 983          {
+ 984   1        int i;
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 17  
+
+ 985   1        for(i=0;a[i]!='\0';i++)
+ 986   1         Lcd_Write_Char(a[i]);
+ 987   1      }
+ 988          /*
+ 989          void DisplayTimeToLCD( unsigned char* pTimeArray )   // Displays time in HH:MM:SS AM/PM format
+ 990          {
+ 991            Lcd_Clear();      // Move cursor to zero location and clear screen
+ 992            Lcd_Set_Cursor(2,0);
+ 993            // Display Hour
+ 994            Lcd_Write_Char( (pTimeArray[2]/10)+0x30 );
+ 995            Lcd_Write_Char( (pTimeArray[2]%10)+0x30 );
+ 996          
+ 997            //Display ':'
+ 998            Lcd_Write_Char(':');
+ 999          
+1000            //Display Minutes
+1001            Lcd_Write_Char( (pTimeArray[1]/10)+0x30 );
+1002            Lcd_Write_Char( (pTimeArray[1]%10)+0x30 );
+1003          
+1004            //Display ':'
+1005            Lcd_Write_Char(':');
+1006          
+1007            //Display Seconds
+1008            Lcd_Write_Char( (pTimeArray[0]/10)+0x30 );
+1009            Lcd_Write_Char( (pTimeArray[0]%10)+0x30 );
+1010          
+1011            //Display Space
+1012            Lcd_Write_Char(' ');
+1013          
+1014            // Display mode
+1015            switch(pTimeArray[3])
+1016            {
+1017            case AM_Time: Lcd_Write_Char("AM"); break;
+1018            case PM_Time: Lcd_Write_Char("PM"); break;
+1019          
+1020            default: Lcd_Write_Char('H'); break;
+1021            }
+1022          }
+1023          
+1024          void DisplayDateOnLCD( unsigned char* pDateArray )   // Displays Date in DD:MM:YY @ Day format
+1025          {
+1026            Lcd_Set_Cursor(2,11);
+1027            
+1028            // Display Date
+1029            Lcd_Write_Char( (pDateArray[1]/10)+0x30 );
+1030            Lcd_Write_Char( (pDateArray[1]%10)+0x30 );
+1031          
+1032            //Display '/'
+1033            Lcd_Write_Char(':');
+1034          
+1035            //Display Month
+1036            Lcd_Write_Char( (pDateArray[2]/10)+0x30 );
+1037            Lcd_Write_Char( (pDateArray[2]%10)+0x30 );
+1038          
+1039            //Display '/'
+1040            WriteDataToLCD(':');
+1041          
+1042            //Display Year
+1043            Lcd_Write_Char( (pDateArray[3]/10)+0x30 );
+1044            Lcd_Write_Char( (pDateArray[3]%10)+0x30 );
+1045          
+1046            //Display Space
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 18  
+
+1047            Lcd_Write_Char(' ');
+1048          
+1049            // Display Day
+1050            switch(pDateArray[0])
+1051            {
+1052            case Monday:  Lcd_Write_String("MON");  break;
+1053            case Tuesday: Lcd_Write_String("TUE");  break;
+1054            case Wednesday: Lcd_Write_String("WED");  break;
+1055            case Thursday:  Lcd_Write_String("THU");  break;
+1056            case Friday:  Lcd_Write_String("FRI");  break;
+1057            case Saturday:  Lcd_Write_String("SAT");  break;
+1058            case Sunday:  Lcd_Write_String("SUN");  break;
+1059          
+1060            default: Lcd_Write_String("???"); break;
+1061            }
+1062          }
+1063          */
+1064          void start(void)
+1065          {
+1066   1        /*to start make
+1067   1        high to low of sda with a clock is high
+1068   1        */
+1069   1      
+1070   1        sda=1;
+1071   1        scl=1;
+1072   1        _nop_();
+1073   1        _nop_();  
+1074   1        sda=0;
+1075   1        scl=0;
+1076   1      }
+1077          
+1078          void stop()
+1079          {
+1080   1        /* to stop the i2c
+1081   1        make an low to high of sda with scl =1*/
+1082   1      
+1083   1        sda = 0;
+1084   1        scl = 1;
+1085   1        _nop_();
+1086   1        _nop_();
+1087   1        sda = 1;
+1088   1        scl = 0;
+1089   1        //delay(10);
+1090   1      }
+1091          
+1092          void write(unsigned char dat)
+1093          {
+1094   1        unsigned char i;
+1095   1        for(i=0;i<8;i++)  
+1096   1        {
+1097   2          _nop_();
+1098   2          _nop_();
+1099   2          scl=0;
+1100   2          sda=(dat&0x80>>i)?1:0;
+1101   2          scl=1;
+1102   2        }
+1103   1      }
+1104          
+1105          void ack(void)
+1106          {
+1107   1        scl=0;
+1108   1        sda=1;
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 19  
+
+1109   1        scl=1;
+1110   1        _nop_();
+1111   1        _nop_();
+1112   1        scl=0;
+1113   1      }
+1114          
+1115          void noack(void)
+1116          {
+1117   1        scl=0;
+1118   1        sda=1;
+1119   1        scl=1;
+1120   1      }
+1121          
+1122          unsigned char read()
+1123          {
+1124   1        unsigned char i,buff=0;
+1125   1        sda=1;
+1126   1      
+1127   1        for(i=0;i<8;i++)
+1128   1        {
+1129   2          scl=1;
+1130   2          _nop_();
+1131   2          _nop_();
+1132   2          if(sda)
+1133   2          buff|=(0x80>>i);
+1134   2          scl=0;
+1135   2        }
+1136   1        return buff;
+1137   1      }
+1138          
+1139          void save_i2c(char dev,char addr,char ch)
+1140          {
+1141   1        start();
+1142   1        write(dev);
+1143   1        ack();
+1144   1          _nop_();
+1145   1          _nop_();
+1146   1        write(addr);
+1147   1        ack();
+1148   1        _nop_();
+1149   1          _nop_();
+1150   1        write(ch);
+1151   1        ack();
+1152   1        _nop_();
+1153   1        _nop_();
+1154   1        stop();
+1155   1        delay(10);
+1156   1      }
+1157          
+1158          char read_i2c(char dev,char addr)
+1159          {
+1160   1        unsigned char buff;
+1161   1        start();
+1162   1        write(dev);
+1163   1        ack();
+1164   1        _nop_();
+1165   1          _nop_();
+1166   1        write(addr);
+1167   1        ack();
+1168   1        _nop_();
+1169   1          _nop_();
+1170   1        start();
+C51 COMPILER V9.54   PILL                                                                  04/20/2016 08:53:58 PAGE 20  
+
+1171   1        write(dev|1);
+1172   1        ack();
+1173   1        _nop_();
+1174   1          _nop_();
+1175   1        buff=read();
+1176   1        noack();
+1177   1        stop();
+1178   1          _nop_();
+1179   1          _nop_();
+1180   1        return buff;
+1181   1      }
+1182          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   3963    ----
+   CONSTANT SIZE    =    391    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     39      13
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

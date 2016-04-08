@@ -1,0 +1,242 @@
+C51 COMPILER V9.54   GSM2                                                                  03/27/2016 18:23:10 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE GSM2
+OBJECT MODULE PLACED IN .\Objects\gsm2.obj
+COMPILER INVOKED BY: F:\Application\Keil uVision\C51\BIN\C51.EXE gsm2.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRIN
+                    -T(.\Listings\gsm2.lst) TABS(2) OBJECT(.\Objects\gsm2.obj)
+
+line level    source
+
+   1          #include<reg52.h>
+   2          #include<string.h>
+   3          #define display_port P0      //Data pins connected to port 2 on microcontroller
+   4          //sbit rs = P3^2;  //RS pin connected to pin 2 of port 3
+   5          sbit rw = P0^3;  // RW pin connected to pin 3 of port 3
+   6          sbit rs = P1^2;
+   7          sbit e = P1^1;
+   8          //sbit e =  P3^4;  //E pin connected to pin 4 of port 3
+   9          
+  10          int k;
+  11          
+  12          sbit RS = P1^2;
+  13          sbit EN = P1^1;
+  14          sbit D0 = P0^0;
+  15          sbit D1 = P0^1;
+  16          sbit D2 = P0^2;
+  17          sbit D3 = P0^3;
+  18          sbit D4 = P0^4;
+  19          sbit D5 = P0^5;
+  20          sbit D6 = P0^6;
+  21          sbit D7 = P0^7;
+  22          
+  23          
+  24          void delay(unsigned int count)
+  25          {
+  26   1        int j;
+  27   1        for(k=0;k<count;k++)
+  28   1          for(j=0;j<1275;j++);
+  29   1      }
+  30          
+  31          void Lcd_Port(char a)
+  32          {
+  33   1        if(a & 1)
+  34   1          D0 = 1;
+  35   1        else 
+  36   1          D0 = 0;
+  37   1        
+  38   1        if(a & 2)
+  39   1          D1 = 1;
+  40   1        else
+  41   1          D1 = 0;
+  42   1        
+  43   1        if(a & 4)
+  44   1          D2 = 1;
+  45   1        else
+  46   1          D2 = 0;
+  47   1        
+  48   1        if(a & 8)
+  49   1          D3 = 1;
+  50   1        else
+  51   1          D3 = 0;
+  52   1        
+  53   1        if(a & 16)
+  54   1          D4 = 1;
+C51 COMPILER V9.54   GSM2                                                                  03/27/2016 18:23:10 PAGE 2   
+
+  55   1        else
+  56   1          D4 = 0;
+  57   1      
+  58   1        if(a & 32)
+  59   1          D5 = 1;
+  60   1        else
+  61   1          D5 = 0;
+  62   1        
+  63   1        if(a & 64)
+  64   1          D6 = 1;
+  65   1        else 
+  66   1          D6 = 0;
+  67   1        
+  68   1        if(a & 128)
+  69   1          D7 = 1;
+  70   1        else
+  71   1          D7 = 0;
+  72   1      }
+  73          void Lcd_Cmd(char a)
+  74          { 
+  75   1        RS = 0;             // => RS = 0
+  76   1        Lcd_Port(a);             //Data transfer
+  77   1        EN  = 1;             // => E = 1
+  78   1        delay(1);
+  79   1        EN  = 0;             // => E = 0
+  80   1      }
+  81          
+  82          void Lcd_Clear()
+  83          {
+  84   1          Lcd_Cmd(1);
+  85   1      }
+  86          
+  87          void Lcd_Set_Cursor(char a, char b)
+  88          {
+  89   1        if(a == 1)
+  90   1          Lcd_Cmd(0x80 + b);
+  91   1        else if(a == 2)
+  92   1          Lcd_Cmd(0xC0 + b);
+  93   1      }
+  94          
+  95          void Lcd_Init()
+  96          {
+  97   1        Lcd_Port(0x00);
+  98   1        RS = 0;
+  99   1        delay(20);
+ 100   1        ///////////// Reset process from datasheet /////////
+ 101   1        Lcd_Cmd(0x30);
+ 102   1        delay(5);
+ 103   1        Lcd_Cmd(0x30);
+ 104   1        delay(11);
+ 105   1        Lcd_Cmd(0x30);
+ 106   1        /////////////////////////////////////////////////////
+ 107   1        Lcd_Cmd(0x38);    //function set
+ 108   1        Lcd_Cmd(0x0C);    //display on,cursor off,blink off
+ 109   1        Lcd_Cmd(0x01);    //clear display
+ 110   1        Lcd_Cmd(0x06);    //entry mode, set increment
+ 111   1      }
+ 112          
+ 113          void Lcd_Write_Char(char a)
+ 114          {
+ 115   1         RS = 1;             // => RS = 1
+ 116   1         Lcd_Port(a);             //Data transfer
+C51 COMPILER V9.54   GSM2                                                                  03/27/2016 18:23:10 PAGE 3   
+
+ 117   1         EN  = 1;             // => E = 1
+ 118   1         delay(1);
+ 119   1         EN  = 0;             // => E = 04
+ 120   1      }
+ 121          
+ 122          void Lcd_Write_String(char *a)
+ 123          {
+ 124   1        int k;
+ 125   1        for(k=0;a[k]!='\0';k++)
+ 126   1         Lcd_Write_Char(a[k]);
+ 127   1      }
+ 128          
+ 129          unsigned char str[26];
+ 130          
+ 131          void GSM_init()            // serial port initialization 
+ 132          {
+ 133   1          TMOD=0x20;            // Timer 1 selected, Mode 2(8-bit auto-reload mode)
+ 134   1          TH1=0xfd;            // 9600 baudrate
+ 135   1          SCON=0x50;            // Mode 1(8-bit UART), receiving enabled
+ 136   1          TR1=1;                // Start timer
+ 137   1      }
+ 138          void msdelay(unsigned int time)  // Function for creating delay in milliseconds.
+ 139          {
+ 140   1          unsigned m,n ;
+ 141   1          for(m=0;m<time;m++)    
+ 142   1          for(n=0;n<1275;n++);
+ 143   1      }
+ 144          
+ 145          void GSM_write(unsigned char ch)    // Function to send commands to GSM
+ 146          {
+ 147   1          SBUF=ch;        // Put byte in SBUF to send to GSM
+ 148   1          while(TI==0);        //wait until the byte trasmission
+ 149   1          TI=0;            //clear TI to send next byte.      
+ 150   1      }
+ 151           void GSM_read()    interrupt 4 // Function to read the response from GSM
+ 152           {     
+ 153   1         while(1){
+ 154   2         while(RI==0);   // Wait until the byte received  
+ 155   2         Lcd_Write_Char('.'); 
+ 156   2         str[k]=SBUF;  //storing byte in str array
+ 157   2         RI=0;           //clear RI to receive next byte
+ 158   2         Lcd_Write_Char(str[k]);
+ 159   2          k++;
+ 160   2         }
+ 161   1       }
+ 162           
+ 163          void gsm_tx_str(unsigned char *ref)
+ 164          {
+ 165   1        
+ 166   1        while(*ref!='\0')
+ 167   1        {
+ 168   2          GSM_write(*ref);
+ 169   2          ref++;
+ 170   2        }
+ 171   1        //gsm_tx(13);
+ 172   1        GSM_write(0x1a);
+ 173   1      }
+ 174          void main()
+ 175          {        
+ 176   1          k=0;
+ 177   1          Lcd_Init();                            
+ 178   1          GSM_init();                
+C51 COMPILER V9.54   GSM2                                                                  03/27/2016 18:23:10 PAGE 4   
+
+ 179   1          msdelay(200);
+ 180   1      Lcd_Write_String("Interfacing GSM with 8051");
+ 181   1          msdelay(200);
+ 182   1          Lcd_Clear();            //    Clear LCD screen
+ 183   1          msdelay(10);                                     
+ 184   1          Lcd_Write_Char('A');                 
+ 185   1          msdelay(1);
+ 186   1          Lcd_Write_Char('T');                 
+ 187   1          msdelay(1);
+ 188   1          GSM_write('A');              // Sending 'A' to GSM module
+ 189   1          GSM_write('T');            // Sending 'T' to GSM module
+ 190   1        GSM_write('\n');
+ 191   1      GSM_write('\r');  
+ 192   1        GSM_write(0x0d);          // Sending carriage return to GSM module            
+ 193   1        GSM_write(0x1A);        
+ 194   1        gsm_tx_str("AT\r\n");          // Sending 'T' to GSM module
+ 195   1        //GSM_write(0x0d);          // Sending carriage return to GSM module            
+ 196   1        //GSM_write(0x1A);   
+ 197   1        //msdelay(50);
+ 198   1        while(1)
+ 199   1        {          
+ 200   2      //    GSM_read();
+ 201   2          //Lcd_Write_Char(str[k]);
+ 202   2          if(str[k-1]=='O' && str[k]=='K'){
+ 203   3               Lcd_Write_Char('*');
+ 204   3              Lcd_Write_Char('O');//str[k-1]);
+ 205   3                Lcd_Write_Char('K');//str[k]);
+ 206   3                //break; 
+ 207   3            }
+ 208   2          Lcd_Set_Cursor(2,0);                      // Write 'Space'
+ 209   2          Lcd_Write_Char('.');
+ 210   2          k++;                                            
+ 211   2        }
+ 212   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    544    ----
+   CONSTANT SIZE    =     31    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     28       5
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

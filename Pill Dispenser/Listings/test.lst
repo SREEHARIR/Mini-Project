@@ -1,0 +1,463 @@
+C51 COMPILER V9.54   TEST                                                                  03/25/2016 06:20:48 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE TEST
+OBJECT MODULE PLACED IN .\Objects\test.obj
+COMPILER INVOKED BY: F:\Application\Keil uVision\C51\BIN\C51.EXE test.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRIN
+                    -T(.\Listings\test.lst) TABS(2) OBJECT(.\Objects\test.obj)
+
+line level    source
+
+   1          /*Transmitter*/
+   2          
+   3          #include<reg52.h>
+   4          #include<stdio.h>
+   5          #include<string.h>
+   6          #include<intrins.h>
+   7          
+   8          sbit RS = P0^0;
+   9          sbit EN = P0^1;
+  10          //sbit D0 = P2^0;
+  11          //sbit D1 = P2^1;
+  12          //sbit D2 = P2^2;
+  13          //sbit D3 = P2^3;
+  14          sbit D4 = P2^4;
+  15          sbit D5 = P2^5;
+  16          sbit D6 = P2^6;
+  17          sbit D7 = P2^7;
+  18          
+  19          sbit inp=P3^2;
+  20          sbit sw_2=P2^1;
+  21          
+  22          sbit BIT1=P1^4;
+  23          sbit BIT2=P1^5;
+  24          sbit BIT3=P1^6;
+  25          sbit BIT4=P1^7;
+  26          
+  27          unsigned char Command_CMGF[]="AT+CMGF=1\r";
+  28          unsigned char CtrlZ=0x1A;
+  29          unsigned char Command_CMGS[]="AT+CMGS =+919446309596\r";
+  30          unsigned char Command_AT[]="AT\r";
+  31          //unsigned char msg02[]="Hello!";
+  32          
+  33          unsigned char str[60];
+  34          int energy=10,k=0;
+  35          //unsigned char ascii[10]={'0','1','2','3','4','5','6','7','8','9'};
+  36          //unsigned char flag_mode=1,flag1=1,flag2=1,flag3=1,flag4=1,flag5=1,flag6=1,flag7=1,flag8=1,flag9=1;
+  37          //unsigned int n=0,k=0,n1=0,k1=0,
+  38          
+  39          //void lcd_enable(void);
+  40          void delay(unsigned int count);
+  41          //void lcd_cmd(unsigned char com);
+  42          //void lcd_string_disp(unsigned char *disp);
+  43          //void lcd_init(void);
+  44          //void lcd_char_disp(unsigned char disp);
+  45          //void lcd_number_display(unsigned char number);
+  46          //void display_1(void);
+  47          //void display_2(void);
+  48          //void control_lights(void);
+  49          void gsm_init(void);
+  50          void gsm_set(void);
+  51          void gsm_tx(unsigned char serialdata);
+  52          void gsm_rx(void);
+  53          void gsm_tx_str(unsigned char *ref);
+  54          void gsm_sms_num(unsigned char *ref);
+C51 COMPILER V9.54   TEST                                                                  03/25/2016 06:20:48 PAGE 2   
+
+  55          void int_to_str(int num);
+  56          void init_isr(void);
+  57          void disable_isr(void);
+  58          void enable_isr(void);
+  59          void str_to_ascii(unsigned char *ref);
+  60          
+  61          void delay(unsigned int count)
+  62          {
+  63   1        int i,j;
+  64   1        for(i=0;i<count;i++)
+  65   1          for(j=0;j<1275;j++);
+  66   1      }
+  67          
+  68          
+  69          void Lcd_Delay(int a)
+  70          {
+  71   1          int j;
+  72   1          int i;
+  73   1          for(i=0;i<a;i++)
+  74   1          {
+  75   2              for(j=0;j<100;j++)
+  76   2              {
+  77   3              }
+  78   2          }
+  79   1      }
+  80          
+  81          void Lcd4_Port(char a)
+  82          {
+  83   1        if(a & 1)
+  84   1          D4 = 1;
+  85   1        else 
+  86   1          D4 = 0;
+  87   1        
+  88   1        if(a & 2)
+  89   1          D5 = 1;
+  90   1        else
+  91   1          D5 = 0;
+  92   1        
+  93   1        if(a & 4)
+  94   1          D6 = 1;
+  95   1        else
+  96   1          D6 = 0;
+  97   1        
+  98   1        if(a & 8)
+  99   1          D7 = 1;
+ 100   1        else
+ 101   1          D7 = 0;
+ 102   1      }
+ 103          void Lcd4_Cmd(char a)
+ 104          { 
+ 105   1        RS = 0;             // => RS = 0
+ 106   1        Lcd4_Port(a);
+ 107   1        EN  = 1;             // => E = 1
+ 108   1        Lcd_Delay(5);
+ 109   1        EN  = 0;             // => E = 0
+ 110   1      }
+ 111          
+ 112          void Lcd4_Clear()
+ 113          {
+ 114   1        Lcd4_Cmd(0);
+ 115   1        Lcd4_Cmd(1);
+ 116   1      }
+C51 COMPILER V9.54   TEST                                                                  03/25/2016 06:20:48 PAGE 3   
+
+ 117          
+ 118          void Lcd4_Set_Cursor(char a, char b)
+ 119          {
+ 120   1        char temp,z,y;
+ 121   1        if(a == 1)
+ 122   1        {
+ 123   2          temp = 0x80 + b;
+ 124   2          z = temp>>4;
+ 125   2          y = (0x80+b) & 0x0F;
+ 126   2          Lcd4_Cmd(z);
+ 127   2          Lcd4_Cmd(y);
+ 128   2        }
+ 129   1        else if(a == 2)
+ 130   1        {
+ 131   2          temp = 0xC0 + b;
+ 132   2          z = temp>>4;
+ 133   2          y = (0xC0+b) & 0x0F;
+ 134   2          Lcd4_Cmd(z);
+ 135   2          Lcd4_Cmd(y);
+ 136   2        }
+ 137   1      }
+ 138          
+ 139          void Lcd4_Init()
+ 140          {
+ 141   1        Lcd4_Port(0x00);
+ 142   1        Lcd_Delay(200);
+ 143   1        ///////////// Reset process from datasheet /////////
+ 144   1        Lcd4_Cmd(0x03);
+ 145   1        Lcd_Delay(50);
+ 146   1        Lcd4_Cmd(0x03);
+ 147   1        Lcd_Delay(110);
+ 148   1        Lcd4_Cmd(0x03);
+ 149   1        /////////////////////////////////////////////////////
+ 150   1        Lcd4_Cmd(0x02);    
+ 151   1        Lcd4_Cmd(0x02);
+ 152   1        Lcd4_Cmd(0x08);   
+ 153   1        Lcd4_Cmd(0x00); 
+ 154   1        Lcd4_Cmd(0x0C);     
+ 155   1        Lcd4_Cmd(0x00);    
+ 156   1        Lcd4_Cmd(0x06);   
+ 157   1      }
+ 158          
+ 159          void Lcd4_Write_Char(char a)
+ 160          {
+ 161   1         char temp,y;
+ 162   1         temp = a&0x0F; 
+ 163   1         y = a&0xF0;  
+ 164   1         RS = 1;             // => RS = 1
+ 165   1         Lcd4_Port(y>>4);             //Data transfer
+ 166   1         EN = 1;
+ 167   1         Lcd_Delay(5);
+ 168   1         EN = 0;
+ 169   1         Lcd4_Port(temp);
+ 170   1         EN = 1;
+ 171   1         Lcd_Delay(5);
+ 172   1         EN = 0;
+ 173   1      }
+ 174          
+ 175          void Lcd4_Write_String(char *a)
+ 176          {
+ 177   1        int i;
+ 178   1        for(i=0;a[i]!='\0';i++)
+C51 COMPILER V9.54   TEST                                                                  03/25/2016 06:20:48 PAGE 4   
+
+ 179   1         Lcd4_Write_Char(a[i]);
+ 180   1      }
+ 181          
+ 182          void gsm_init(void)    // INITIALIZE SERIAL PORT
+ 183          {
+ 184   1        TMOD = 0x20;    // Timer 1 IN MODE 2-AUTO RELOAD TO GENERATE BAUD RATE
+ 185   1        TH1 = 0xFD; // LOAD BAUDRATE TO TIMER REGISTER
+ 186   1        SCON = 0x50;    // SERIAL MODE 1, 8-DATA BIT 1-START BIT, 1-STOP BIT, REN ENABLED
+ 187   1        TR1 = 1;            // START TIMER
+ 188   1      /*
+ 189   1        TMOD = 0x20;
+ 190   1        SCON = 0x50;
+ 191   1        TH1  = 0xFD;
+ 192   1        TL1  = 0xFD;
+ 193   1        TR1  = 1;
+ 194   1        TI = 1;
+ 195   1      */
+ 196   1      //  gsm_set();
+ 197   1      }
+ 198          
+ 199          //void gsm_set(void)
+ 200          //{
+ 201          //  //gsm_tx_str("AT+CMGF=1%c");
+ 202          //  //strcpy(str,"AT+CMGF=?\r");
+ 203          //  //strcpy(str,"ABCDEFGHIJKLMNOPQRSTUVWXYZ\rabcdefghijklmnopqrstuvwxyz\r");
+ 204          //  //str_to_ascii(str);
+ 205          //  gsm_tx_str(Command_AT);
+ 206          //  delay(200);
+ 207          //  gsm_tx_str(Command_CMGF);
+ 208          //  delay(200);
+ 209          //  gsm_tx_str(Command_CMGS);
+ 210          //  delay(200);
+ 211          //  gsm_tx_str("Hi! This number has been registered for Electricity Billing");
+ 212          //  //gsm_tx_str(str); 
+ 213          //  delay(5);
+ 214          //  return;
+ 215          //}
+ 216          
+ 217          void gsm_tx(unsigned char serialdata)
+ 218          {
+ 219   1        SBUF = serialdata;      // LOAD DATA TO SERIAL BUFFER REGISTER
+ 220   1        while(TI == 0);       // WAIT UNTIL TRANSMISSION TO COMPLETE
+ 221   1        TI = 0;   // CLEAR TRANSMISSION INTERRUPT FLAG
+ 222   1      }
+ 223          
+ 224          void gsm_rx()     // Function to read the response from GSM
+ 225          {     
+ 226   1        while(RI == 0);   // Wait until the byte received  
+ 227   1        //delay(200);
+ 228   1        str[k]=SBUF;    //storing byte in str array
+ 229   1        RI=0;           //clear RI to receive next byte
+ 230   1      }
+ 231          
+ 232          void gsm_tx_str(unsigned char *ref)
+ 233          {
+ 234   1        
+ 235   1        while(*ref!='\0')
+ 236   1        {
+ 237   2          gsm_tx(*ref);
+ 238   2          ref++;
+ 239   2        }
+ 240   1        //gsm_tx(13);
+C51 COMPILER V9.54   TEST                                                                  03/25/2016 06:20:48 PAGE 5   
+
+ 241   1        //gsm_tx(0x1A);
+ 242   1      }
+ 243          
+ 244          //void gsm_sms_num(unsigned char *ref)
+ 245          //{
+ 246          //  int i=0;
+ 247          //  Lcd4_Set_Cursor(2,11); 
+ 248          //  Lcd4_Write_String("To :");
+ 249          //  while(*ref!='\0')
+ 250          //  {
+ 251          //    str[i]=*ref;
+ 252          //    i++;
+ 253          //    ref++;
+ 254          //  }
+ 255          //  str[i]='\0';
+ 256          //  Lcd4_Write_String(str);
+ 257          //  delay(50);
+ 258          //}
+ 259          
+ 260          //void int_to_str(int num)
+ 261          //{
+ 262          //  int size=0,i=0,temp;
+ 263          //  while(num!=0)
+ 264          //  {
+ 265          //    str[i]=num%10 + 48;
+ 266          //    num=num/10;
+ 267          //    i++;  
+ 268          //  }
+ 269          //  str[i]='\0';
+ 270          //  for(i=0;str[i]!='\0';i++);
+ 271          //  size=i-1;
+ 272          //  for(i=0;i<((size+1)/2);i++)
+ 273          //  {
+ 274          //    temp = str[i];
+ 275          //    str[i] = str[size-i];
+ 276          //    str[size-i] = temp;
+ 277          //  }
+ 278          //}
+ 279          
+ 280          //void str_to_ascii(unsigned char *ref)
+ 281          //{
+ 282          //  int i=0,size=0;
+ 283          //  for(i=0;*ref!='\0';i++)
+ 284          //  {
+ 285          //    str[i]=*ref;
+ 286          //    ref++;
+ 287          //  }
+ 288          //  str[i]='\0';
+ 289          //  size=i-1;
+ 290          //  for(i=0;str[i]!='\0';i++)
+ 291          //  {
+ 292          //    //if(str[i]==' ')
+ 293          //    {
+ 294          //      //str[i]=str[i] + 0x20;
+ 295          //    }
+ 296          //    //else if(str[i]>=0x0a)
+ 297          //    {
+ 298          //      //str[i]=str[i] + 0x80;//- 0xBF;
+ 299          //    }
+ 300          //    //str[i]=str[i]-48;
+ 301          //  }
+ 302          //}
+C51 COMPILER V9.54   TEST                                                                  03/25/2016 06:20:48 PAGE 6   
+
+ 303          
+ 304          //void ISR_INT1(void) interrupt 2
+ 305          //{
+ 306          //  energy++;
+ 307          //}
+ 308          //void isr_init(void)
+ 309          //{
+ 310          //  IE = 0x84;
+ 311          //  IT1 = 1;
+ 312          //}
+ 313          //void disable_isr(void)
+ 314          //{
+ 315          //  IE=0x04;
+ 316          //}
+ 317          
+ 318          //void enable_isr(void)
+ 319          //{
+ 320          //  IE=0x84;
+ 321          //}
+ 322          
+ 323          /*
+ 324          void main()
+ 325          {
+ 326            BIT1=0;
+ 327            BIT2=0;
+ 328            BIT3=0;
+ 329            BIT4=0;
+ 330            Lcd4_Init();
+ 331            gsm_init();
+ 332            //gsm_rx();
+ 333            //isr_init();
+ 334            
+ 335            Lcd4_Clear();
+ 336            Lcd4_Set_Cursor(1,4);
+ 337            Lcd4_Write_String("WELCOME");
+ 338            delay(30);
+ 339            
+ 340            Lcd4_Clear();
+ 341            Lcd4_Set_Cursor(1,1);
+ 342            Lcd4_Write_String("ENERGY METER");
+ 343            Lcd4_Set_Cursor(2,1);
+ 344            Lcd4_Write_String("BILLING Tx");
+ 345            delay(30);
+ 346            while(1)
+ 347            {
+ 348              Lcd4_Clear();
+ 349              Lcd4_Set_Cursor(1,2);
+ 350              Lcd4_Write_String("ENERGY METER");
+ 351              Lcd4_Set_Cursor(2,1);
+ 352              Lcd4_Write_String("Energy : ");
+ 353              int_to_str(energy); 
+ 354              Lcd4_Write_String(str);
+ 355              delay(300);
+ 356              if(sw_2==1)
+ 357              {
+ 358                while(sw_2==1);
+ 359                Lcd4_Clear();
+ 360                Lcd4_Set_Cursor(1,1);
+ 361                Lcd4_Write_String("SENDING SMS....");
+ 362                delay(30);
+ 363                //disable_isr();
+ 364          //      gsm_sms_num("9446309596");
+C51 COMPILER V9.54   TEST                                                                  03/25/2016 06:20:48 PAGE 7   
+
+ 365          //      int_to_str(energy);
+ 366                str_to_ascii(str);
+ 367          //      gsm_tx_str(str);
+ 368            //    energy=1;
+ 369            //    enable_isr();
+ 370              }
+ 371            }
+ 372          }
+ 373          */
+ 374          void main()
+ 375          {
+ 376   1        //BIT1=0;
+ 377   1        //BIT2=0;
+ 378   1        //BIT3=0;
+ 379   1        //BIT4=0;
+ 380   1        Lcd4_Init();
+ 381   1        gsm_init();
+ 382   1        //gsm_rx();
+ 383   1        //isr_init();
+ 384   1        
+ 385   1        Lcd4_Clear();
+ 386   1        Lcd4_Set_Cursor(1,4);
+ 387   1        Lcd4_Write_String("WELCOME");
+ 388   1        delay(200);
+ 389   1      
+ 390   1        k=0;
+ 391   1          Lcd4_Clear();
+ 392   1          Lcd4_Set_Cursor(1,0);
+ 393   1          Lcd4_Write_String("GSM with 8051");
+ 394   1          delay(200);
+ 395   1          Lcd4_Clear();            //    Clear LCD screen
+ 396   1          delay(10);                                     
+ 397   1          //gsm_tx('A');              // Sending 'A' to GSM module
+ 398   1          //Lcd4_Write_Char('A');                 
+ 399   1          delay(1);
+ 400   1          //gsm_tx('T');            // Sending 'T' to GSM module
+ 401   1          //Lcd4_Write_Char('T');                 
+ 402   1          delay(1);
+ 403   1          //gsm_tx(0x0d); 
+ 404   1          //gsm_tx(0x1A);          // Sending carriage return to GSM module       
+ 405   1          gsm_tx_str(Command_AT); 
+ 406   1          gsm_tx(0x1A);
+ 407   1          Lcd4_Write_String(Command_AT);                    
+ 408   1         // delay(50);
+ 409   1          while(1)
+ 410   1          {          
+ 411   2            Lcd4_Write_Char('F');   
+ 412   2            gsm_rx();
+ 413   2            Lcd4_Write_Char('F');
+ 414   2              Lcd4_Write_Char(str[k]);    
+ 415   2              if(str[k-1]=='O' && str[k]=='K'){
+ 416   3                  Lcd4_Write_Char(0x20);                      // Write 'Space'
+ 417   3                  Lcd4_Write_Char(str[k-1]);
+ 418   3                  Lcd4_Write_Char(str[k]);
+ 419   3                  break; 
+ 420   3              }
+ 421   2              k=k+1;
+ 422   2              if(k>50)
+ 423   2                k=0;
+ 424   2          }
+ 425   1        }
+
+C51 COMPILER V9.54   TEST                                                                  03/25/2016 06:20:48 PAGE 8   
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    589    ----
+   CONSTANT SIZE    =     22    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =    104       9
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

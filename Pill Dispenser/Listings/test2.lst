@@ -1,0 +1,133 @@
+C51 COMPILER V9.54   TEST2                                                                 03/25/2016 03:15:26 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE TEST2
+OBJECT MODULE PLACED IN .\Objects\test2.obj
+COMPILER INVOKED BY: F:\Application\Keil uVision\C51\BIN\C51.EXE test2.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRI
+                    -NT(.\Listings\test2.lst) TABS(2) OBJECT(.\Objects\test2.obj)
+
+line level    source
+
+   1          #include<reg52.h>
+   2          #define display_port P2      //Data pins connected to port 2 on microcontroller
+   3          //sbit rs = P3^2;  //RS pin connected to pin 2 of port 3
+   4          sbit rw = P3^3;  // RW pin connected to pin 3 of port 3
+   5          sbit rs = P0^0;
+   6          sbit e = P0^1;
+   7          //sbit e =  P3^4;  //E pin connected to pin 4 of port 3
+   8          int k;
+   9          unsigned char str[26];
+  10          void GSM_init()            // serial port initialization 
+  11          {
+  12   1          TMOD=0x20;            // Timer 1 selected, Mode 2(8-bit auto-reload mode)
+  13   1          TH1=0xfd;            // 9600 baudrate
+  14   1          SCON=0x50;            // Mode 1(8-bit UART), receiving enabled
+  15   1          TR1=1;                // Start timer
+  16   1      }
+  17          void msdelay(unsigned int time)  // Function for creating delay in milliseconds.
+  18          {
+  19   1          unsigned m,n ;
+  20   1          for(m=0;m<time;m++)    
+  21   1          for(n=0;n<1275;n++);
+  22   1      }
+  23          void lcd_cmd(unsigned char command)  //Function to send command instruction to LCD
+  24          {
+  25   1          display_port = command;
+  26   1          rs= 0;
+  27   1          rw=0;
+  28   1          e=1;
+  29   1          msdelay(1);
+  30   1          e=0;
+  31   1      }
+  32          void lcd_data(unsigned char disp_data)  //Function to send display data to LCD
+  33          {
+  34   1          display_port = disp_data;
+  35   1          rs= 1;
+  36   1          rw=0;
+  37   1          e=1;
+  38   1          msdelay(1);
+  39   1          e=0;
+  40   1      }
+  41           void lcd_init()    //Function to prepare the LCD  and get it ready
+  42          {
+  43   1          lcd_cmd(0x38);  // for using 2 lines and 5X7 matrix of LCD
+  44   1          msdelay(10);
+  45   1          lcd_cmd(0x0F);  // turn display ON, cursor blinking
+  46   1          msdelay(10);
+  47   1          lcd_cmd(0x01);  //clear screen
+  48   1          msdelay(10);
+  49   1          lcd_cmd(0x80);  // bring cursor to beginning of first line
+  50   1          msdelay(10);
+  51   1      }         
+  52          void lcd_string(unsigned char *str)    // Function to display string on LCD
+  53          {
+  54   1          int i=0;
+C51 COMPILER V9.54   TEST2                                                                 03/25/2016 03:15:26 PAGE 2   
+
+  55   1          while(str[i]!='\0')
+  56   1          {
+  57   2             lcd_data(str[i]);                  
+  58   2             i++;
+  59   2             msdelay(10);
+  60   2            if(i==15) lcd_cmd(0xc2);                                          
+  61   2             }
+  62   1          return; 
+  63   1      }
+  64          void GSM_write(unsigned char ch)    // Function to send commands to GSM
+  65          {
+  66   1          SBUF=ch;        // Put byte in SBUF to send to GSM
+  67   1          while(TI==0);        //wait until the byte trasmission
+  68   1          TI=0;            //clear TI to send next byte.      
+  69   1      }
+  70           void GSM_read()     // Function to read the response from GSM
+  71           {     
+  72   1          while(RI==0);   // Wait until the byte received  
+  73   1          str[k]=SBUF;    //storing byte in str array
+  74   1          RI=0;           //clear RI to receive next byte
+  75   1       }
+  76          void main()
+  77          {        
+  78   1          k=0;
+  79   1          lcd_init();                            
+  80   1          GSM_init();                
+  81   1          msdelay(200);
+  82   1          lcd_string("Interfacing GSM with 8051");
+  83   1          msdelay(200);
+  84   1          lcd_cmd(0x01);            //    Clear LCD screen
+  85   1          msdelay(10);                                     
+  86   1          GSM_write('A');              // Sending 'A' to GSM module
+  87   1          lcd_data('A');                 
+  88   1          msdelay(1);
+  89   1          GSM_write('T');            // Sending 'T' to GSM module
+  90   1          lcd_data('T');                 
+  91   1          msdelay(1);
+  92   1          GSM_write(0x0d);          // Sending carriage return to GSM module            
+  93   1          msdelay(50);
+  94   1          while(1)
+  95   1          {          
+  96   2              GSM_read();
+  97   2              if(str[k-1]=='O' && str[k]=='K'){
+  98   3                  lcd_data(0x20);                      // Write 'Space'
+  99   3                  lcd_data(str[k-1]);
+ 100   3                  lcd_data(str[k]);
+ 101   3                  break; 
+ 102   3              }
+ 103   2              k=k+1;                                            
+ 104   2          }
+ 105   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    330    ----
+   CONSTANT SIZE    =     26    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     28       5
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+C51 COMPILER V9.54   TEST2                                                                 03/25/2016 03:15:26 PAGE 3   
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
