@@ -1,0 +1,202 @@
+C51 COMPILER V9.54   LCD                                                                   04/16/2016 11:22:32 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE LCD
+OBJECT MODULE PLACED IN .\Objects\LCD.obj
+COMPILER INVOKED BY: F:\Application\Keil uVision\C51\BIN\C51.EXE LCD.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT
+                    -(.\Listings\LCD.lst) TABS(2) OBJECT(.\Objects\LCD.obj)
+
+line level    source
+
+   1          #include "Includes.h"
+   2          
+   3          void ToggleEpinOfLCD(void)
+   4          {
+   5   1        E = 1;                // Give a pulse on E pin
+*** ERROR C202 IN LINE 5 OF LCD.c: 'E': undefined identifier
+   6   1        __delay_us(E_Delay);  // so that LCD can latch the
+*** ERROR C202 IN LINE 6 OF LCD.c: 'E_Delay': undefined identifier
+   7   1        E = 0;                // data from data bus
+*** ERROR C202 IN LINE 7 OF LCD.c: 'E': undefined identifier
+   8   1        __delay_us(E_Delay);  
+*** ERROR C202 IN LINE 8 OF LCD.c: 'E_Delay': undefined identifier
+   9   1      }
+  10          
+  11          void WriteDataToLCD(char t)
+  12          {
+  13   1         RS = 1;             // This is data
+*** ERROR C202 IN LINE 13 OF LCD.c: 'RS': undefined identifier
+  14   1      
+  15   1         P2 &= 0x0F;       // Make P2.4 to P2.7 zero
+  16   1         P2 |= (t&0xF0);     // Write Upper nibble of data
+  17   1         ToggleEpinOfLCD();  // Toggle E pin to send data 
+  18   1      
+  19   1         P2 &= 0x0F;       // Make P2.4 to P2.7 zero
+  20   1         P2 |= ((t<<4)&0xF0);// Write Lower nibble of data
+  21   1         ToggleEpinOfLCD();  // Toggle E pin to send data 
+  22   1      }
+  23          
+  24          
+  25          void WriteCommandToLCD(int z)
+  26          {
+  27   1         RS = 0;             // This is command
+*** ERROR C202 IN LINE 27 OF LCD.c: 'RS': undefined identifier
+  28   1      
+  29   1         P2 &= 0x0F;       // Make P2.4 to P2.7 zero
+  30   1         P2 |= (z&0xF0);     // Write Upper nibble of data
+  31   1         ToggleEpinOfLCD();  // Toggle E pin to send data 
+  32   1      
+  33   1         P2 &= 0x0F;       // Make P2.4 to P2.7 zero
+  34   1         P2 |= ((z<<4)&0xF0);// Write Lower nibble of data
+  35   1         ToggleEpinOfLCD();  // Toggle E pin to send data 
+  36   1      }
+  37          
+  38          void InitLCD(void)
+  39          {
+  40   1        RS = 0;     // Make pin zero
+*** ERROR C202 IN LINE 40 OF LCD.c: 'RS': undefined identifier
+  41   1        E  = 0;     // Make Pin zero          
+*** ERROR C202 IN LINE 41 OF LCD.c: 'E': undefined identifier
+  42   1      
+  43   1        ///////////// Reset process from datasheet /////////
+  44   1           __delay_us(15000);
+  45   1      
+  46   1         P2 &= 0x0F;       // Make P2.4 to P2.7 zero
+C51 COMPILER V9.54   LCD                                                                   04/16/2016 11:22:32 PAGE 2   
+
+  47   1         P2 |= 0x30;         // Write 0x3
+  48   1           ToggleEpinOfLCD();    // Toggle E pin to send data 
+  49   1      
+  50   1           __delay_us(4500);
+  51   1      
+  52   1         P2 &= 0x0F;       // Make P2.4 to P2.7 zero
+  53   1         P2 |= 0x30;         // Write 0x3
+  54   1           ToggleEpinOfLCD();    // Toggle E pin to send data 
+  55   1      
+  56   1           __delay_us(300);
+  57   1      
+  58   1         P2 &= 0x0F;       // Make P2.4 to P2.7 zero
+  59   1         P2 |= 0x30;         // Write 0x3
+  60   1           ToggleEpinOfLCD();    // Toggle E pin to send data 
+  61   1      
+  62   1           __delay_us(650);
+  63   1      
+  64   1         P2 &= 0x0F;       // Make P2.4 to P2.7 zero
+  65   1         P2 |= 0x20;         // Write 0x2
+  66   1           ToggleEpinOfLCD();    // Toggle E pin to send data 
+  67   1      
+  68   1         __delay_us(650);
+  69   1      
+  70   1        /////////////////////////////////////////////////////
+  71   1         WriteCommandToLCD(0x28);    //function set
+  72   1         WriteCommandToLCD(0x0c);    //display on,cursor off,blink off
+  73   1         WriteCommandToLCD(0x01);    //clear display
+  74   1         WriteCommandToLCD(0x06);    //entry mode, set increment
+  75   1      }
+  76          
+  77          
+  78          
+  79          void ClearLCDScreen(void)       // Clear the Screen and return cursor to zero position
+  80          {
+  81   1        WriteCommandToLCD(0x01);    // Clear the screen
+  82   1        __delay_us(2000);           // Delay for cursor to return at zero position
+  83   1      }
+  84          
+  85          
+  86          void WriteStringToLCD(const char *s)
+  87          {
+  88   1        while(*s) 
+  89   1          WriteDataToLCD(*s++); 
+  90   1      }
+  91          
+  92          void SetLcdCursor(char a, char b)
+  93          {
+  94   1        if(a == 1)
+  95   1          WriteCommandToLCD(0x80 + b);
+  96   1        else if(a == 2)
+  97   1          WriteCommandToLCD(0xC0 + b);
+  98   1      }
+  99          
+ 100          void DisplayTimeToLCD( unsigned char* pTimeArray )   // Displays time in HH:MM:SS AM/PM format
+ 101          {
+ 102   1        ClearLCDScreen();      // Move cursor to zero location and clear screen
+ 103   1        SetLcdCursor(2,0);
+ 104   1        // Display Hour
+ 105   1        WriteDataToLCD( (pTimeArray[2]/10)+0x30 );
+ 106   1        WriteDataToLCD( (pTimeArray[2]%10)+0x30 );
+ 107   1      
+ 108   1        //Display ':'
+C51 COMPILER V9.54   LCD                                                                   04/16/2016 11:22:32 PAGE 3   
+
+ 109   1        WriteDataToLCD(':');
+ 110   1      
+ 111   1        //Display Minutes
+ 112   1        WriteDataToLCD( (pTimeArray[1]/10)+0x30 );
+ 113   1        WriteDataToLCD( (pTimeArray[1]%10)+0x30 );
+ 114   1      
+ 115   1        //Display ':'
+ 116   1        WriteDataToLCD(':');
+ 117   1      
+ 118   1        //Display Seconds
+ 119   1        WriteDataToLCD( (pTimeArray[0]/10)+0x30 );
+ 120   1        WriteDataToLCD( (pTimeArray[0]%10)+0x30 );
+ 121   1      
+ 122   1        //Display Space
+ 123   1        WriteDataToLCD(' ');
+ 124   1      
+ 125   1        // Display mode
+ 126   1        switch(pTimeArray[3])
+ 127   1        {
+ 128   2        case AM_Time: WriteStringToLCD("AM"); break;
+ 129   2        case PM_Time: WriteStringToLCD("PM"); break;
+ 130   2      
+ 131   2        default: WriteDataToLCD('H'); break;
+ 132   2        }
+ 133   1      }
+ 134          
+ 135          
+ 136          
+ 137          
+ 138          void DisplayDateOnLCD( unsigned char* pDateArray )   // Displays Date in DD:MM:YY @ Day format
+ 139          {
+ 140   1        SetLcdCursor(2,11);
+ 141   1        
+ 142   1        // Display Date
+ 143   1        WriteDataToLCD( (pDateArray[1]/10)+0x30 );
+ 144   1        WriteDataToLCD( (pDateArray[1]%10)+0x30 );
+ 145   1      
+ 146   1        //Display '/'
+ 147   1        WriteDataToLCD(':');
+ 148   1      
+ 149   1        //Display Month
+ 150   1        WriteDataToLCD( (pDateArray[2]/10)+0x30 );
+ 151   1        WriteDataToLCD( (pDateArray[2]%10)+0x30 );
+ 152   1      
+ 153   1        //Display '/'
+ 154   1        WriteDataToLCD(':');
+ 155   1      
+ 156   1        //Display Year
+ 157   1        WriteDataToLCD( (pDateArray[3]/10)+0x30 );
+ 158   1        WriteDataToLCD( (pDateArray[3]%10)+0x30 );
+ 159   1      
+ 160   1        //Display Space
+ 161   1        WriteDataToLCD(' ');
+ 162   1      
+ 163   1        // Display Day
+ 164   1        switch(pDateArray[0])
+ 165   1        {
+ 166   2        case Monday:  WriteStringToLCD("MON");  break;
+ 167   2        case Tuesday: WriteStringToLCD("TUE");  break;
+ 168   2        case Wednesday: WriteStringToLCD("WED");  break;
+ 169   2        case Thursday:  WriteStringToLCD("THU");  break;
+ 170   2        case Friday:  WriteStringToLCD("FRI");  break;
+C51 COMPILER V9.54   LCD                                                                   04/16/2016 11:22:32 PAGE 4   
+
+ 171   2        case Saturday:  WriteStringToLCD("SAT");  break;
+ 172   2        case Sunday:  WriteStringToLCD("SUN");  break;
+ 173   2      
+ 174   2        default: WriteStringToLCD("???"); break;
+ 175   2        }
+ 176   1      }
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  8 ERROR(S)

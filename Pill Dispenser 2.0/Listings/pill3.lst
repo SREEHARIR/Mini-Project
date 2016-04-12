@@ -1,0 +1,1911 @@
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE PILL3
+OBJECT MODULE PLACED IN .\Objects\pill3.obj
+COMPILER INVOKED BY: F:\Application\Keil uVision\C51\BIN\C51.EXE pill3.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRI
+                    -NT(.\Listings\pill3.lst) TABS(2) OBJECT(.\Objects\pill3.obj)
+
+line level    source
+
+   1          #include <reg52.h>
+   2          #include <intrins.h>
+   3          
+   4          #define BOX P3 // MSB Box1 , Box2 LSB
+   5          
+   6          sbit RS = P0^4;
+   7          sbit EN = P0^5;
+   8          sbit D0 = P2^0;
+   9          sbit D1 = P2^1;
+  10          sbit D2 = P2^2;
+  11          sbit D3 = P2^3;
+  12          sbit D4 = P2^4;
+  13          sbit D5 = P2^5;
+  14          sbit D6 = P2^6;
+  15          sbit D7 = P2^7;
+  16          
+  17          sbit SCL = P0^0;
+  18          sbit SCK = P0^0;
+  19          sbit SDA = P0^1;
+  20          
+  21          sbit sw_1 = P0^2;
+  22          sbit sw_2 = P0^3;
+  23          sbit ir = P1^0;
+  24          sbit buzzer = P1^1;
+  25          sbit led = P1^2;
+  26          
+  27          //unsigned char tempchr,mem=0xA0,rtc=0xD0,sec=0x00,min=0x01,hr=0x02,day=0x03;
+  28          //int i=0,j=0,fn=0,fn2=0,dat=0,dat_bcd=0,alarms=0,tmpint=0;
+  29          int i=0,j=0,dat=0,alarms=0,fn2=0,fn=0,Time_Day=0,Alarm_Day=0,Alarm_Over=0;
+  30          //-------------------------------------------------------------------------------------------------
+  31          
+  32          // Define i2c speed
+  33          #define I2C_SPEED_FACTOR  1 // Low value means low i2c frequency
+  34          #define Crystal_Value   12  // MHz
+  35          #define HalfBitDelay    (500*Crystal_Value)/(12*I2C_SPEED_FACTOR)
+  36          
+  37          // Define macros
+  38          #define Set_SDA_Low   SDA = 0
+  39          #define Set_SDA_High  SDA = 1
+  40          #define Set_SCK_Low   SCK = 0
+  41          #define Set_SCK_High  SCK = 1
+  42          
+  43          //Function Declarations
+  44          void __delay_us(unsigned int);
+  45          void InitI2C(void);
+  46          void I2C_Start(void);
+  47          void I2C_ReStart(void);
+  48          void I2C_Stop(void);
+  49          void I2C_Send_ACK(void);
+  50          void I2C_Send_NACK(void);
+  51          bit I2C_Write_Byte(unsigned char);
+  52          unsigned char I2C_Read_Byte(void);
+  53          
+  54          //---------------------------------------------------------------------------------------------------
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 2   
+
+  55          //---------------------------------------------------------------------------------------------------
+  56          
+  57          // Define EEPROM i2c device address
+  58          #define Device_Address_EEPROM 0xA0
+  59          
+  60          #define Alarm_Memory 0x00
+  61          
+  62          void Write_Byte_To_EEPROM(unsigned char, unsigned char);
+  63          unsigned char Read_Byte_From_EEPROM(unsigned char);
+  64          void Write_Bytes_To_EEPROM(unsigned char,unsigned char* ,unsigned char);
+  65          void Read_Bytes_From_EEPROM(unsigned char, unsigned char* , unsigned int);
+  66          void Get_EEPROM_Alarm(int);
+  67          void Add_EEPROM_Alarm(unsigned char*);
+  68          void DisplayAlarmToLCD(unsigned char*);
+  69          void Delete_EEPROM_Alarm(int);
+  70          
+  71          unsigned char pAlarmArray[6];
+  72          
+  73          //---------------------------------------------------------------------------------------------------
+  74          //---------------------------------------------------------------------------------------------------
+  75          
+  76          
+  77          // Define DS1307 i2c device address
+  78          #define Device_Address_RTC  0xD0
+  79          
+  80          // Define Time Modes
+  81          #define AM_Time         0
+  82          #define PM_Time         1
+  83          #define TwentyFourHoursMode   2
+  84          
+  85          // Define days
+  86          #define Sunday    1
+  87          #define Monday    2
+  88          #define Tuesday   3
+  89          #define Wednesday 4
+  90          #define Thursday  5
+  91          #define Friday    6
+  92          #define Saturday  7
+  93          
+  94          // Function Declarations
+  95          void Write_Byte_To_RTC(unsigned char, unsigned char);
+  96          unsigned char Read_Byte_From_RTC(unsigned char);
+  97          void Write_Bytes_To_RTC(unsigned char,unsigned char*,unsigned char);
+  98          void Read_Bytes_From_RTC(unsigned char,unsigned char*,unsigned int);
+  99          void Set_RTC_Time(unsigned char,unsigned char,unsigned char,unsigned char,unsigned char);
+ 100          void Get_RTC_Time(void);
+ 101          void Set_RTC_Date(unsigned char,unsigned char,unsigned char);
+ 102          void Get_RTC_Date(void);
+ 103          bit isRTCStopped();
+ 104          void startRTC();
+ 105          void stopRTC();
+ 106          
+ 107          // Global RTC Array and temp variable
+ 108          unsigned char pRTCArrayTime[5];
+ 109          unsigned char pRTCArrayDate[3];
+ 110          unsigned char Temp,Prev_Day;
+ 111          
+ 112          //---------------------------------------------------------------------------------------------------
+ 113          //---------------------------------------------------------------------------------------------------
+ 114          
+ 115          void DisplayTimeToLCD(unsigned char*) ;
+ 116          void DisplayDateToLCD( unsigned char*);
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 3   
+
+ 117          
+ 118          //----------------------------------------------------------------------------------------------------
+ 119          
+ 120          /*
+ 121          fn -> 0-time, 1-set_time, 2-add_alarm(yes/no), 3-remove_alarm(yes/no)
+ 122          */
+ 123          /*
+ 124          saving in eeprom ->
+ 125          0x00   - num of alarms
+ 126          arr[0] -> 0x01*i - motor 1 rotation & motor 2 rotation
+ 127          arr[1] -> 0x02*i - min of alarm i
+ 128          arr[2] -> 0x03*i - hr of alarm i
+ 129          arr[3] -> 0x04*i - day of alarm i
+ 130          
+ 131          */
+ 132          //char tim[4],timchk[4];
+ 133          //int timi[4];
+ 134          /*
+ 135          tim     -> 0-sec,   1-min, 2-hr, 3-day //read from rtc
+ 136          timchk  -> 0-motor, 1-min, 2-hr, 3-day //read from mem
+ 137          */
+ 138          
+ 139          void delay(int i);
+ 140          void Lcd_Port(char a);
+ 141          void Lcd_Cmd(char a);
+ 142          void Lcd_Clear();
+ 143          void Lcd_Set_Cursor(char a, char b);
+ 144          void Lcd_Init();
+ 145          void Lcd_Write_Char(char a);
+ 146          void Lcd_Write_String(char *a);
+ 147          //void start(void);
+ 148          //void stop();
+ 149          //void write(unsigned char dat);
+ 150          //void ack(void);
+ 151          //void noack(void);
+ 152          //unsigned char read();
+ 153          //void save_i2c(char dev,char addr,char ch);
+ 154          //char read_i2c(char dev,char addr);
+ 155          //void time(void);
+ 156          //void display_time(void);
+ 157          void check_alarm(void);
+ 158          //unsigned char Bcd_to_dec (unsigned char val);
+ 159          //unsigned char Dec_to_bcd (unsigned char val);
+ 160          
+ 161          
+ 162          // TODO //
+ 163          //void interpt(void);
+ 164          void funtions(void);
+ 165          void motor(int m1,int m2);
+ 166          //void sort(void);
+ 167          void alarm(void);
+ 168          //void display_alarm(int num);
+ 169          //void delete_alarm(int num);
+ 170          //void add_alarm(void);
+ 171          void wipe(void);
+ 172          //// TODO //
+ 173          
+ 174          
+ 175          void delay(int i)
+ 176          {
+ 177   1        int j;
+ 178   1        while(i--)
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 4   
+
+ 179   1          for(j=0;j<1000;j++);
+ 180   1      }
+ 181          
+ 182          void wipe(void)
+ 183          {
+ 184   1      for(i=0;i<10;i++){
+ 185   2        Write_Byte_To_EEPROM(i,0x00);
+ 186   2      }
+ 187   1      }
+ 188          
+ 189          void check_alarm(void)
+ 190          {
+ 191   1        alarms=Read_Byte_From_EEPROM(Alarm_Memory);
+ 192   1        //alarms=alarms-48;
+ 193   1        //Lcd_Write_Char(alarms+48);
+ 194   1        for(i=1;i<=alarms;i++)
+ 195   1        {
+ 196   2          Get_EEPROM_Alarm(i);
+ 197   2          //tempchr=((timchk[2]&0xF0)>>4);
+ 198   2          //timchk[2]=timchk[2]&0x0F;
+ 199   2          Alarm_Over = pAlarmArray[0];
+ 200   2          Alarm_Day = pAlarmArray[3];
+ 201   2          Time_Day = pRTCArrayTime[3];
+ 202   2          if((pAlarmArray[1] == pRTCArrayTime[1]) && (pAlarmArray[2] == pRTCArrayTime[2]) && (( Time_Day % Alarm_D
+             -ay ) == 0) && (Alarm_Over)==0) //check min hr day
+ 203   2          {
+ 204   3            //timchk[3]+=tempchr;
+ 205   3            //tempchr=(tempchr<<4);
+ 206   3            //timchk[3]=(timchk[3]|tempchr);
+ 207   3            Write_Byte_To_EEPROM(Alarm_Memory+1+((i-1)*6),1); // save if alarm over in day register bits 4
+ 208   3            motor(pAlarmArray[4],pAlarmArray[5]);
+ 209   3            alarm();
+ 210   3          }
+ 211   2        }
+ 212   1      }
+ 213          
+ 214          void alarm()
+ 215          {
+ 216   1        Lcd_Clear();
+ 217   1        Lcd_Set_Cursor(1,0);
+ 218   1        Lcd_Write_String("Take Pill");
+ 219   1        while(1)
+ 220   1        {
+ 221   2          //buzzer=0;
+ 222   2          //led=0;
+ 223   2          if((sw_1==1) || (sw_2==1) )//|| (ir==0))
+ 224   2          {
+ 225   3            buzzer=1;
+ 226   3            led=1;
+ 227   3            while((sw_1==1) || (sw_2==1));
+ 228   3            Lcd_Clear();
+ 229   3            Lcd_Set_Cursor(1,0);
+ 230   3            return;
+ 231   3          }
+ 232   2          Get_RTC_Time();
+ 233   2          DisplayTimeToLCD(pRTCArrayTime);
+ 234   2          if((pRTCArrayTime[1]) < ((pAlarmArray[1])+1))
+ 235   2          {
+ 236   3            buzzer=1;
+ 237   3            led=1;
+ 238   3            delay(1);
+ 239   3            buzzer=0;
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 5   
+
+ 240   3            led=0;
+ 241   3            delay(1);
+ 242   3          }
+ 243   2          else
+ 244   2          {
+ 245   3            buzzer=1;
+ 246   3            led=1;
+ 247   3            delay(2);
+ 248   3            buzzer=0;
+ 249   3            led=0;
+ 250   3            delay(2);
+ 251   3          }
+ 252   2        }
+ 253   1      }
+ 254          /*
+ 255          void display_alarm(int Alarm_Num)
+ 256          {
+ 257            Lcd_Set_Cursor(1,0);
+ 258            Lcd_Write_String("Alarm");
+ 259            Lcd_Write_Char(Alarm_Num+48);
+ 260          
+ 261            Get_EEPROM_Alarm(Alarm_Num);
+ 262          
+ 263            Lcd_Set_Cursor(2,0);
+ 264            Lcd_Write_Char(pAlarmArray[2]/10+48);
+ 265            Lcd_Write_Char(pAlarmArray[2]%10+48);
+ 266            Lcd_Write_Char(':');
+ 267            Lcd_Write_Char(pAlarmArray[1]/10+48);
+ 268            Lcd_Write_Char(pAlarmArray[1]%10+48);
+ 269            Lcd_Write_Char(' ');
+ 270            Temp=(pAlarmArray[3]%10);
+ 271            Lcd_Set_Cursor(2,6);
+ 272            switch(pAlarmArray[3])
+ 273            {
+ 274              case 1: Lcd_Write_String("Everyday  "); break;
+ 275              case 2: Lcd_Write_String("Every2days"); break;
+ 276              case 3: Lcd_Write_String("Every3days"); break;
+ 277              case 4: Lcd_Write_String("Every4days"); break;
+ 278              case 5: Lcd_Write_String("Every5days"); break;
+ 279              case 6: Lcd_Write_String("Every6days"); break;
+ 280              case 7: Lcd_Write_String("Every7days"); break;
+ 281          
+ 282              default: Lcd_Write_String("???"); break;
+ 283            }
+ 284            Lcd_Set_Cursor(2,7);
+ 285            Lcd_Write_String("B1-");
+ 286            Lcd_Write_Char(pAlarmArray[4]/10+48);
+ 287            Lcd_Write_Char(pAlarmArray[4]%10+48);
+ 288            Lcd_Write_String(" B2-");
+ 289            Lcd_Write_Char(pAlarmArray[4]/10+48);
+ 290            Lcd_Write_Char(pAlarmArray[4]%10+48);
+ 291          
+ 292          }
+ 293          */
+ 294          void motor(int m1, int m2)
+ 295          {
+ 296   1        for(i=0;i<m1;i++)
+ 297   1        {
+ 298   2          for(j=0;j<4;j++)
+ 299   2          {
+ 300   3            BOX=0x01;
+ 301   3            delay(5);
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 6   
+
+ 302   3            BOX=0x04;
+ 303   3            delay(5);
+ 304   3            BOX=0x02;
+ 305   3            delay(5);
+ 306   3            BOX=0x08;
+ 307   3            delay(5);
+ 308   3          }
+ 309   2        }
+ 310   1        BOX=0x00;
+ 311   1        for(i=0;i<m2;i++)
+ 312   1        {
+ 313   2          for(j=0;j<4;j++)
+ 314   2          {
+ 315   3            BOX=0x10;
+ 316   3            delay(5);
+ 317   3            BOX=0x40;
+ 318   3            delay(5);
+ 319   3            BOX=0x20;
+ 320   3            delay(5);
+ 321   3            BOX=0x80;
+ 322   3            delay(5);
+ 323   3          }
+ 324   2        }
+ 325   1        BOX=0x00;
+ 326   1        //alarm();
+ 327   1      }
+ 328          
+ 329          
+ 330          void functions()
+ 331          {
+ 332   1        int change=0;
+ 333   1        if(fn==0)
+ 334   1        {
+ 335   2          return;
+ 336   2        }
+ 337   1        Get_RTC_Time();
+ 338   1        if(fn==1)
+ 339   1        {
+ 340   2          Lcd_Clear();
+ 341   2          Lcd_Set_Cursor(1,0);
+ 342   2          Lcd_Write_String("SET TIME");
+ 343   2          DisplayTimeToLCD(pRTCArrayTime);
+ 344   2          fn2=0;
+ 345   2          change=0;
+ 346   2          while(1)
+ 347   2          {
+ 348   3            if(change!=0)
+ 349   3            {
+ 350   4              fn++;
+ 351   4              change=0;
+ 352   4              Lcd_Set_Cursor(2,0);
+ 353   4              Lcd_Write_String("   Time Saved   ");
+ 354   4              delay(40);        
+ 355   4              break;
+ 356   4            }
+ 357   3            if(sw_1==1)
+ 358   3            {
+ 359   4              while(sw_1==1);
+ 360   4              fn++;
+ 361   4              change=0;
+ 362   4              break;
+ 363   4            }
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 7   
+
+ 364   3            if(sw_2==1)
+ 365   3            {
+ 366   4              while(sw_2==1);
+ 367   4              if(fn2==0)
+ 368   4              {
+ 369   5                //Lcd_Clear();
+ 370   5                Lcd_Set_Cursor(1,0);
+ 371   5                Lcd_Write_String("SET TIME - Hour ");
+ 372   5                dat=0;
+ 373   5                change=0;
+ 374   5                while(1)
+ 375   5                {
+ 376   6                  if(sw_1==1)
+ 377   6                  {
+ 378   7                    while(sw_1==1);
+ 379   7                    fn2++;
+ 380   7                    if(change!=0)
+ 381   7                    {
+ 382   8                      pRTCArrayTime[2]=dat;
+ 383   8                      Set_RTC_Time(pRTCArrayTime[4],pRTCArrayTime[3],pRTCArrayTime[2],pRTCArrayTime[1],pRTCArrayTime[0])
+             -;
+ 384   8                      Get_RTC_Time();
+ 385   8                      change=0;
+ 386   8                    }
+ 387   7                    break;
+ 388   7                  }
+ 389   6                  if(sw_2==1)
+ 390   6                  {
+ 391   7                    change=1;
+ 392   7                    while(sw_2==1);
+ 393   7                    dat++;
+ 394   7                    if(dat>=24)
+ 395   7                    {
+ 396   8                      dat=0;
+ 397   8                    }
+ 398   7                      Lcd_Set_Cursor(2,0);
+ 399   7                      Lcd_Write_Char((dat/10)+48);
+ 400   7                      Lcd_Write_Char((dat%10)+48);
+ 401   7      
+ 402   7                  }
+ 403   6                }
+ 404   5              }
+ 405   4              if(fn2==1)
+ 406   4              {
+ 407   5                //Lcd_Clear();
+ 408   5                Lcd_Set_Cursor(1,0);
+ 409   5                Lcd_Write_String("SET TIME-Minute");
+ 410   5                //display_time();
+ 411   5                dat=0;
+ 412   5                change=0;
+ 413   5                while(1)
+ 414   5                {
+ 415   6                  if(sw_1==1)
+ 416   6                  {
+ 417   7                    while(sw_1==1);
+ 418   7                    fn2++;
+ 419   7                    if(change!=0)
+ 420   7                    {
+ 421   8                      pRTCArrayTime[1]=dat;
+ 422   8                      Set_RTC_Time(pRTCArrayTime[4],pRTCArrayTime[3],pRTCArrayTime[2],pRTCArrayTime[1],pRTCArrayTime[0])
+             -;
+ 423   8                      Get_RTC_Time();
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 8   
+
+ 424   8                      change=0;
+ 425   8                    }
+ 426   7                    break;
+ 427   7                  }
+ 428   6                  if(sw_2==1)
+ 429   6                  {
+ 430   7                    change=1;
+ 431   7                    while(sw_2==1);
+ 432   7                    dat++;
+ 433   7                    if(dat>=60)
+ 434   7                    {
+ 435   8                      dat=0;
+ 436   8                    }
+ 437   7                      //DisplayTimeToLCD(pRTCArrayTime);
+ 438   7                      Lcd_Set_Cursor(2,3);
+ 439   7                      Lcd_Write_Char((dat/10)+48);
+ 440   7                      Lcd_Write_Char((dat%10)+48);
+ 441   7                  }
+ 442   6                }
+ 443   5              }
+ 444   4              if(fn2==2)
+ 445   4              {
+ 446   5                //Lcd_Clear();
+ 447   5                Lcd_Set_Cursor(1,0);
+ 448   5                Lcd_Write_String("SET TIME - Day  ");
+ 449   5                //display_time();
+ 450   5                //Lcd_Set_Cursor(2,9);
+ 451   5                //Lcd_Write_String("SUN");
+ 452   5                dat=1;
+ 453   5                change=0;
+ 454   5                while(1)
+ 455   5                {
+ 456   6                  if(sw_1==1)
+ 457   6                  {
+ 458   7                    while(sw_1==1);
+ 459   7                    fn2++;
+ 460   7                    if(change!=0)
+ 461   7                    {
+ 462   8                      pRTCArrayTime[4]=dat;
+ 463   8                      Set_RTC_Time(pRTCArrayTime[4],pRTCArrayTime[3],pRTCArrayTime[2],pRTCArrayTime[1],pRTCArrayTime[0])
+             -;
+ 464   8                      Get_RTC_Time();
+ 465   8                      //change=0;
+ 466   8                    }
+ 467   7                    break;
+ 468   7                  }
+ 469   6                  if(sw_2==1)
+ 470   6                  {
+ 471   7                    while(sw_2==1);
+ 472   7                    change=1;
+ 473   7                    dat++;
+ 474   7                    if(dat>=7)
+ 475   7                    {
+ 476   8                      dat=1;
+ 477   8                    }
+ 478   7                    Lcd_Set_Cursor(2,9);
+ 479   7                    switch(dat)
+ 480   7                    {
+ 481   8                      case 1:
+ 482   8                        Lcd_Write_String("SUN");
+ 483   8                        break;
+ 484   8                      case 2:
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 9   
+
+ 485   8                        Lcd_Write_String("MON");
+ 486   8                        break;
+ 487   8                      case 3:
+ 488   8                        Lcd_Write_String("TUE");
+ 489   8                        break;
+ 490   8                      case 4:
+ 491   8                        Lcd_Write_String("WED");
+ 492   8                        break;
+ 493   8                      case 5:
+ 494   8                        Lcd_Write_String("THU");
+ 495   8                        break;
+ 496   8                      case 6:
+ 497   8                        Lcd_Write_String("FRI");
+ 498   8                        break;
+ 499   8                      case 7:
+ 500   8                        Lcd_Write_String("SAT");
+ 501   8                        break;
+ 502   8                      default:
+ 503   8                        Lcd_Write_String("ERR");
+ 504   8                        break;
+ 505   8                    }
+ 506   7                  }
+ 507   6                }
+ 508   5              }
+ 509   4            }
+ 510   3          }
+ 511   2        }
+ 512   1        if(fn==2)
+ 513   1        {
+ 514   2          Lcd_Clear();
+ 515   2          Lcd_Set_Cursor(1,0);
+ 516   2          Lcd_Write_String("  ADD ALARMS    ");
+ 517   2          DisplayTimeToLCD(pRTCArrayTime);
+ 518   2          dat=0;
+ 519   2          change=0;
+ 520   2          while(1)
+ 521   2          {
+ 522   3            if(sw_1==1)
+ 523   3            {
+ 524   4              while(sw_1==1);
+ 525   4              fn++;
+ 526   4              if(change!=0)
+ 527   4              {
+ 528   5                change=0;
+ 529   5                alarms++;
+ 530   5                pAlarmArray[0]=(0x00);
+ 531   5                Add_EEPROM_Alarm(pAlarmArray);
+ 532   5                Lcd_Set_Cursor(2,0);
+ 533   5                Lcd_Write_String("  ALARM ADDED   ");
+ 534   5                delay(40);
+ 535   5              }
+ 536   4              break;
+ 537   4            }
+ 538   3            if(sw_2==1)
+ 539   3            {
+ 540   4              while(sw_2==1);
+ 541   4              change=1;
+ 542   4              //dat++;
+ 543   4              dat=0;
+ 544   4              if(sw_1==1)
+ 545   4              {
+ 546   5                while(sw_1==1);
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 10  
+
+ 547   5                i++;
+ 548   5                break;
+ 549   5              }
+ 550   4              if(sw_2==1)
+ 551   4              {
+ 552   5                while(sw_2==1);
+ 553   5                fn2=0;
+ 554   5                if(fn2==0)
+ 555   5                {
+ 556   6                  Lcd_Set_Cursor(2,12);
+ 557   6                  Lcd_Write_String("Hour");
+ 558   6                  Lcd_Set_Cursor(2,0);
+ 559   6                  Lcd_Write_String("00:00       ");
+ 560   6                  dat=0;
+ 561   6                  //change=0;
+ 562   6                  while(1)
+ 563   6                  {
+ 564   7                    if(sw_1==1)
+ 565   7                    {
+ 566   8                      while(sw_1==1);
+ 567   8                      fn2++;
+ 568   8                      //if(change!=0)
+ 569   8                      {
+ 570   9                        //dat_bcd=((dat/10)<<4)+((dat%10));
+ 571   9                        //timchk[2]=dat_bcd;
+ 572   9                        //save_i2c(rtc,hr,dat);
+ 573   9                        pAlarmArray[2]=((((dat/10))<<4)+((dat%10)));
+ 574   9                        //change=0;
+ 575   9                      }
+ 576   8                      break;
+ 577   8                    }
+ 578   7                    if(sw_2==1)
+ 579   7                    {
+ 580   8                      //change=1;
+ 581   8                      while(sw_2==1);
+ 582   8                      dat++;
+ 583   8                      if(dat>=24)
+ 584   8                      {
+ 585   9                        dat=0;
+ 586   9                      }
+ 587   8                      Lcd_Set_Cursor(2,0);
+ 588   8                      Lcd_Write_Char((dat/10)+48);
+ 589   8                      Lcd_Write_Char((dat%10)+48);
+ 590   8                    }
+ 591   7                  }
+ 592   6                }
+ 593   5                if(fn2==1)
+ 594   5                {
+ 595   6                  Lcd_Set_Cursor(2,12);
+ 596   6                  Lcd_Write_String("Min ");
+ 597   6                  Lcd_Set_Cursor(2,3);
+ 598   6                  Lcd_Write_String("00  ");
+ 599   6                  dat=0;
+ 600   6                  //change=0;
+ 601   6                  while(1)
+ 602   6                  {
+ 603   7                    if(sw_1==1)
+ 604   7                    {
+ 605   8                      while(sw_1==1);
+ 606   8                      fn2++;
+ 607   8                      //if(change!=0)
+ 608   8                      {
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 11  
+
+ 609   9                        //dat_bcd=((dat/10)<<4)+((dat%10));
+ 610   9                        //timchk[1]=dat_bcd;
+ 611   9                        //save_i2c(rtc,min,dat);
+ 612   9                        pAlarmArray[1]=((((dat/10))<<4)+((dat%10)));
+ 613   9                        //change=0;
+ 614   9                      }
+ 615   8                      break;
+ 616   8                    }
+ 617   7                    if(sw_2==1)
+ 618   7                    {
+ 619   8                      //change=1;
+ 620   8                      while(sw_2==1);
+ 621   8                      dat++;
+ 622   8                      if(dat>=60)
+ 623   8                      {
+ 624   9                        dat=0;
+ 625   9                      }
+ 626   8                      Lcd_Set_Cursor(2,3);
+ 627   8                      Lcd_Write_Char((dat/10)+48);
+ 628   8                      Lcd_Write_Char((dat%10)+48);
+ 629   8                    }
+ 630   7                  }
+ 631   6                }
+ 632   5                if(fn2==2)
+ 633   5                {
+ 634   6                  Lcd_Set_Cursor(2,12);
+ 635   6                  Lcd_Write_String("Day   ");
+ 636   6                  Lcd_Set_Cursor(2,0);
+ 637   6                  Lcd_Write_String("Everyday    ");
+ 638   6                  dat=1;
+ 639   6                  //change=0;
+ 640   6                  while(1)
+ 641   6                  {
+ 642   7                    if(sw_1==1)
+ 643   7                    {
+ 644   8                      while(sw_1==1);
+ 645   8                      fn2++;
+ 646   8                      //if(change!=0)
+ 647   8                      {
+ 648   9                        //dat_bcd=((dat/10)<<4)+((dat%10));
+ 649   9                        //timchk[3]=dat_bcd;
+ 650   9                        //save_i2c(rtc,day,dat);
+ 651   9                        pAlarmArray[3]=((((dat/10))<<4)+((dat%10)));
+ 652   9                        //change=0;
+ 653   9                      }
+ 654   8                      break;
+ 655   8                    }
+ 656   7                    if(sw_2==1)
+ 657   7                    {
+ 658   8                      //change=1;
+ 659   8                      while(sw_2==1);
+ 660   8                      dat++;
+ 661   8                      if(dat>=7)
+ 662   8                      {
+ 663   9                        dat=1;
+ 664   9                      }
+ 665   8                      Lcd_Set_Cursor(2,0);
+ 666   8                      switch(dat)
+ 667   8                      {
+ 668   9                        case 1:
+ 669   9                          Lcd_Write_String("Everyday    ");
+ 670   9                          break;
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 12  
+
+ 671   9                        case 2:
+ 672   9                          Lcd_Write_String("Every 2 Days");
+ 673   9                          break;
+ 674   9                        case 3:
+ 675   9                          Lcd_Write_String("Every 3 Days");
+ 676   9                          break;
+ 677   9                        case 4:
+ 678   9                          Lcd_Write_String("Every 4 Days");
+ 679   9                          break;
+ 680   9                        case 5:
+ 681   9                          Lcd_Write_String("Every 5 Days");
+ 682   9                          break;
+ 683   9                        case 6:
+ 684   9                          Lcd_Write_String("Every 6 Days");
+ 685   9                          break;
+ 686   9                        case 7:
+ 687   9                          Lcd_Write_String("Every 7 Days");
+ 688   9                          break;
+ 689   9                        default:
+ 690   9                          Lcd_Write_String("ERR         ");
+ 691   9                          break;
+ 692   9                      }
+ 693   8                    }
+ 694   7                  }
+ 695   6                }
+ 696   5                if(fn2==3)
+ 697   5                {
+ 698   6                  Lcd_Set_Cursor(2,0);
+ 699   6                  Lcd_Write_String("Box 1 Turns  ");
+ 700   6                  Lcd_Set_Cursor(2,13);
+ 701   6                  Lcd_Write_String("00 ");
+ 702   6                  dat=0;
+ 703   6                  //change=0;
+ 704   6                  while(1)
+ 705   6                  {
+ 706   7                    if(sw_1==1)
+ 707   7                    {
+ 708   8                      while(sw_1==1);
+ 709   8                      fn2++;
+ 710   8                      //if(change!=0)
+ 711   8                      {
+ 712   9                        //dat_bcd=((dat/10)<<4)+((dat%10));
+ 713   9                        //timchk[0]=(dat_bcd<<4);
+ 714   9                        //save_i2c(rtc,min,dat);
+ 715   9                        pAlarmArray[4]=((((dat/10))<<4)+((dat%10)));
+ 716   9                        //change=0;
+ 717   9                      }
+ 718   8                      break;
+ 719   8                    }
+ 720   7                    if(sw_2==1)
+ 721   7                    {
+ 722   8                      //change=1;
+ 723   8                      while(sw_2==1);
+ 724   8                      dat++;
+ 725   8                      if(dat>=11)
+ 726   8                      {
+ 727   9                        dat=0;
+ 728   9                      }
+ 729   8                      Lcd_Set_Cursor(2,13);
+ 730   8                      Lcd_Write_Char((dat/10)+48);
+ 731   8                      Lcd_Write_Char((dat%10)+48);
+ 732   8                    }
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 13  
+
+ 733   7                  }
+ 734   6                }
+ 735   5      
+ 736   5                if(fn2==4)
+ 737   5                {
+ 738   6                  Lcd_Set_Cursor(2,0);
+ 739   6                  Lcd_Write_String("Box 2 Turns  ");
+ 740   6                  Lcd_Set_Cursor(2,13);
+ 741   6                  Lcd_Write_String("00 ");
+ 742   6                  dat=0;
+ 743   6                  //change=0;
+ 744   6                  while(1)
+ 745   6                  {
+ 746   7                    if(sw_1==1)
+ 747   7                    {
+ 748   8                      while(sw_1==1);
+ 749   8                      fn2++;
+ 750   8                      //if(change!=0)
+ 751   8                      {
+ 752   9                        //dat_bcd=((dat/10)<<4)+((dat%10));
+ 753   9                        //timchk[0]+=(dat_bcd);
+ 754   9                        //save_i2c(rtc,min,dat);
+ 755   9                        pAlarmArray[5]=((((dat/10))<<4)+((dat%10)));
+ 756   9                        //change=0;
+ 757   9                      }
+ 758   8                      break;
+ 759   8                    }
+ 760   7                    if(sw_2==1)
+ 761   7                    {
+ 762   8                      //change=1;
+ 763   8                      while(sw_2==1);
+ 764   8                      dat++;
+ 765   8                      if(dat>=11)
+ 766   8                      {
+ 767   9                        dat=0;
+ 768   9                      }
+ 769   8                      Lcd_Set_Cursor(2,13);
+ 770   8                      Lcd_Write_Char((dat/10)+48);
+ 771   8                      Lcd_Write_Char((dat%10)+48);
+ 772   8                    }
+ 773   7                  }
+ 774   6                }
+ 775   5              }
+ 776   4            }
+ 777   3          }
+ 778   2        }
+ 779   1        if(fn==3)
+ 780   1        {
+ 781   2          Lcd_Clear();
+ 782   2          Lcd_Set_Cursor(1,0);
+ 783   2          Lcd_Write_String(" REMOVE ALARMS  ");
+ 784   2          alarms=Read_Byte_From_EEPROM(Alarm_Memory);
+ 785   2          dat=0;
+ 786   2          while(1)
+ 787   2          {
+ 788   3            if(sw_1==1)
+ 789   3            {
+ 790   4              while(sw_1==1);
+ 791   4              fn++;
+ 792   4              break;
+ 793   4            }
+ 794   3            if(sw_2==1)
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 14  
+
+ 795   3            {
+ 796   4              while(sw_2==1);
+ 797   4              dat++;
+ 798   4              if(alarms==0)
+ 799   4              {
+ 800   5                Lcd_Set_Cursor(2,0);
+ 801   5                Lcd_Write_String(" No Alarms SET  ");
+ 802   5                delay(40);
+ 803   5                break;
+ 804   5              }
+ 805   4              for(i=1;i<=alarms;i++)
+ 806   4              {
+ 807   5                Get_EEPROM_Alarm(i);
+ 808   5                DisplayAlarmToLCD(pAlarmArray);
+ 809   5                while(1)
+ 810   5                {
+ 811   6                  if(sw_1==1)
+ 812   6                  {
+ 813   7                    while(sw_1==1);
+ 814   7                    break;
+ 815   7                  }
+ 816   6                  if((sw_2)==1)
+ 817   6                  {
+ 818   7                    while(sw_2==1);
+ 819   7                    Delete_EEPROM_Alarm(i);
+ 820   7                    alarms--;
+ 821   7                    Lcd_Set_Cursor(2,0);
+ 822   7                    Lcd_Write_String(" Alarm Removed  ");
+ 823   7                    delay(40);
+ 824   7                    break;
+ 825   7                  }
+ 826   6                }
+ 827   5              }
+ 828   4            }
+ 829   3          }
+ 830   2        }
+ 831   1        //sort();
+ 832   1        //if(fn>=4)
+ 833   1        {
+ 834   2          fn=0;
+ 835   2        }
+ 836   1        Lcd_Clear();
+ 837   1      }
+ 838          
+ 839          void Refresh_New_Day(void)
+ 840          {
+ 841   1        if(Prev_Day!=pRTCArrayTime[3])
+ 842   1        {
+ 843   2          alarms=Read_Byte_From_EEPROM(0x00);
+ 844   2          for(i=1;i<=alarms;i++)
+ 845   2          {
+ 846   3            Write_Byte_To_EEPROM((Alarm_Memory+1+((i-1)*6)),0);
+ 847   3          }
+ 848   2        }
+ 849   1        Prev_Day=pRTCArrayTime[3];
+ 850   1      }
+ 851              
+ 852          void main()
+ 853          {
+ 854   1        //unsigned char ch,chr;//[16]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
+ 855   1        //unsigned char ch[16];
+ 856   1        InitI2C();  // Initialize i2c pins
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 15  
+
+ 857   1        Lcd_Init();
+ 858   1        delay(100);
+ 859   1        Lcd_Clear();
+ 860   1        Lcd_Set_Cursor(1,0);
+ 861   1        Lcd_Write_String(" Pill Dispenser ");
+ 862   1        fn=0;
+ 863   1        alarms=0;
+ 864   1        //Set_RTC_Time(Sunday, TwentyFourHoursMode, 12 , 34, 00 );  // Set time 08:32:59 AM
+ 865   1        //Set_RTC_Date(8, 7, 65);   // Set 02-11-2012 @ Friday
+ 866   1        //startRTC();
+ 867   1        Prev_Day=0;
+ 868   1      
+ 869   1        //wipe();
+ 870   1        //if(isRTCStopped()){
+ 871   1        //  Lcd_Set_Cursor(2,14);
+ 872   1        //  Lcd_Write_String("1");
+ 873   1          //startRTC();
+ 874   1          //stopRTC();
+ 875   1        //}
+ 876   1        //else{
+ 877   1        //  Lcd_Set_Cursor(2,14);
+ 878   1        //  Lcd_Write_String("0");
+ 879   1          //stopRTC();
+ 880   1        //}
+ 881   1      
+ 882   1        /*
+ 883   1        Write_Bytes_To_EEPROM(0x00,ch,16);
+ 884   1        for(i=0;i<16;i++)
+ 885   1        {
+ 886   1          ch[i]='q';
+ 887   1        }
+ 888   1      
+ 889   1        Read_Bytes_From_EEPROM(0x00,ch,16);
+ 890   1        for(i=0;i<16;i++)
+ 891   1        {
+ 892   1          Lcd_Write_Char(ch[i]);
+ 893   1        }
+ 894   1        */
+ 895   1        /*
+ 896   1      
+ 897   1        Write_Byte_To_EEPROM(0x00,0x00);
+ 898   1      
+ 899   1      
+ 900   1      /*
+ 901   1        Write_Byte_To_EEPROM(0x00,0x00);
+ 902   1        pAlarmArray[0]=0x00;
+ 903   1        pAlarmArray[1]=0x09;
+ 904   1        pAlarmArray[2]=0x04;
+ 905   1        pAlarmArray[3]=0x01;
+ 906   1        pAlarmArray[4]=0x02;
+ 907   1        pAlarmArray[5]=0x01;
+ 908   1      
+ 909   1        Add_EEPROM_Alarm(pAlarmArray);
+ 910   1        Get_EEPROM_Alarm(1);
+ 911   1        DisplayAlarmToLCD(pAlarmArray);
+ 912   1        delay(100);
+ 913   1      */
+ 914   1        //i=0;
+ 915   1        //Write_Byte_To_EEPROM(0x00,i);
+ 916   1        /*ch = '0';
+ 917   1        while(1){
+ 918   1        Lcd_Set_Cursor(2,0);
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 16  
+
+ 919   1        Lcd_Write_Char(chr+48);
+ 920   1        Lcd_Set_Cursor(2,4);
+ 921   1        Lcd_Write_Char(j+48);
+ 922   1          i++;
+ 923   1          ch++;
+ 924   1          Write_Byte_To_EEPROM(0x00,i);
+ 925   1          Write_Byte_To_EEPROM(0x01,ch);
+ 926   1          j=Read_Byte_From_EEPROM(0x00);
+ 927   1          chr=Read_Byte_From_EEPROM(0x01);
+ 928   1          delay(10);
+ 929   1        }
+ 930   1      */
+ 931   1      
+ 932   1      
+ 933   1      
+ 934   1      
+ 935   1        while(1)
+ 936   1        {
+ 937   2          //Lcd_Clear();
+ 938   2          Lcd_Set_Cursor(1,0);
+ 939   2          Lcd_Write_String(" Pill Dispenser ");
+ 940   2          //Lcd_Set_Cursor(1,15);
+ 941   2          //Lcd_Write_Char(fn+48);
+ 942   2          //for(i=0;i<100;i++)
+ 943   2          Get_RTC_Time();
+ 944   2          DisplayTimeToLCD(pRTCArrayTime);
+ 945   2          Refresh_New_Day();
+ 946   2          check_alarm();
+ 947   2          //motor(1,1);
+ 948   2          if(sw_1 == 1)
+ 949   2          {
+ 950   3            while(sw_1==1);
+ 951   3            fn++;
+ 952   3            //Lcd_Set_Cursor(1,10);
+ 953   3            //Lcd_Write_Char(fn+48);
+ 954   3            //delay(100);
+ 955   3      
+ 956   3            functions();
+ 957   3            fn=0;
+ 958   3            fn2=0;
+ 959   3          }
+ 960   2        }
+ 961   1        /*
+ 962   1      
+ 963   1      
+ 964   1        while(1)
+ 965   1        {
+ 966   1          Lcd_Set_Cursor(2,0);
+ 967   1          ch=read_i2c(rtc,hr);
+ 968   1          Lcd_Write_Char(ch/16+48);
+ 969   1          Lcd_Write_Char(ch%16+48);
+ 970   1          Lcd_Write_Char('-');
+ 971   1          ch=read_i2c(rtc,min);
+ 972   1          Lcd_Write_Char(ch/16+48);
+ 973   1          Lcd_Write_Char(ch%16+48);
+ 974   1          Lcd_Write_Char('-');
+ 975   1          ch=read_i2c(rtc,sec);
+ 976   1          Lcd_Write_Char(ch/16+48);
+ 977   1          Lcd_Write_Char(ch%16+48);
+ 978   1        }
+ 979   1        */
+ 980   1      }
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 17  
+
+ 981          
+ 982          
+ 983          void Lcd_Port(char a)
+ 984          {
+ 985   1        if(a & 1)
+ 986   1          D0 = 1;
+ 987   1        else
+ 988   1          D0 = 0;
+ 989   1      
+ 990   1        if(a & 2)
+ 991   1          D1 = 1;
+ 992   1        else
+ 993   1          D1 = 0;
+ 994   1      
+ 995   1        if(a & 4)
+ 996   1          D2 = 1;
+ 997   1        else
+ 998   1          D2 = 0;
+ 999   1      
+1000   1        if(a & 8)
+1001   1          D3 = 1;
+1002   1        else
+1003   1          D3 = 0;
+1004   1      
+1005   1        if(a & 16)
+1006   1          D4 = 1;
+1007   1        else
+1008   1          D4 = 0;
+1009   1      
+1010   1        if(a & 32)
+1011   1          D5 = 1;
+1012   1        else
+1013   1          D5 = 0;
+1014   1      
+1015   1        if(a & 64)
+1016   1          D6 = 1;
+1017   1        else
+1018   1          D6 = 0;
+1019   1      
+1020   1        if(a & 128)
+1021   1          D7 = 1;
+1022   1        else
+1023   1          D7 = 0;
+1024   1      }
+1025          void Lcd_Cmd(char a)
+1026          {
+1027   1        RS = 0;            // => RS = 0
+1028   1        Lcd_Port(a);             //Data transfer
+1029   1        EN  = 1;             // => E = 1
+1030   1        delay(5);
+1031   1        EN  = 0;             // => E = 0
+1032   1      }
+1033          
+1034          void Lcd_Clear()
+1035          {
+1036   1        Lcd_Cmd(1);
+1037   1      }
+1038          
+1039          void Lcd_Set_Cursor(char a, char b)
+1040          {
+1041   1        if(a == 1)
+1042   1          Lcd_Cmd(0x80 + b);
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 18  
+
+1043   1        else if(a == 2)
+1044   1          Lcd_Cmd(0xC0 + b);
+1045   1      }
+1046          
+1047          void Lcd_Init()
+1048          {
+1049   1        Lcd_Port(0x00);
+1050   1        RS = 0;
+1051   1        delay(5);
+1052   1        ///////////// Reset process from datasheet /////////
+1053   1        Lcd_Cmd(0x30);
+1054   1        delay(5);
+1055   1        Lcd_Cmd(0x30);
+1056   1        delay(5);
+1057   1        Lcd_Cmd(0x30);
+1058   1        /////////////////////////////////////////////////////
+1059   1        Lcd_Cmd(0x38);    //function set
+1060   1        Lcd_Cmd(0x0C);    //display on,cursor off,blink off
+1061   1        Lcd_Cmd(0x01);    //clear display
+1062   1        Lcd_Cmd(0x06);    //entry mode, set increment
+1063   1      }
+1064          
+1065          void Lcd_Write_Char(char a)
+1066          {
+1067   1         RS = 1;             // => RS = 1
+1068   1         Lcd_Port(a);            //Data transfer
+1069   1         EN = 1;             // => E = 1
+1070   1         delay(1);
+1071   1         EN = 0;             // => E = 04
+1072   1      }
+1073          
+1074          void Lcd_Write_String(char *a)
+1075          {
+1076   1        int i;
+1077   1        for(i=0;a[i]!='\0';i++)
+1078   1         Lcd_Write_Char(a[i]);
+1079   1      }
+1080          
+1081          void DisplayTimeToLCD( unsigned char* pTimeArray )   // Displays time in HH:MM:SS AM/PM format
+1082          {
+1083   1        //pTimeArray=pRTCArrayTime;
+1084   1        Lcd_Set_Cursor(2,0);
+1085   1        // Display Hour
+1086   1        Lcd_Write_Char( (pTimeArray[2]/10)+0x30 );
+1087   1        Lcd_Write_Char( (pTimeArray[2]%10)+0x30 );
+1088   1      
+1089   1        //Display ':'
+1090   1        Lcd_Write_Char(':');
+1091   1      
+1092   1        //Display Minutes
+1093   1        Lcd_Write_Char( (pTimeArray[1]/10)+0x30 );
+1094   1        Lcd_Write_Char( (pTimeArray[1]%10)+0x30 );
+1095   1      
+1096   1        //Display ':'
+1097   1        Lcd_Write_Char(':');
+1098   1      
+1099   1        //Display Seconds
+1100   1        Lcd_Write_Char( (pTimeArray[0]/10)+0x30 );
+1101   1        Lcd_Write_Char( (pTimeArray[0]%10)+0x30 );
+1102   1      
+1103   1        //Display Space
+1104   1        Lcd_Write_Char(' ');
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 19  
+
+1105   1      
+1106   1        // Display mode
+1107   1        /*
+1108   1        switch(pTimeArray[3])
+1109   1        {
+1110   1        case AM_Time: Lcd_Write_String("AM"); break;
+1111   1        case PM_Time: Lcd_Write_String("PM"); break;
+1112   1      
+1113   1        default: Lcd_Write_Char('H'); break;
+1114   1        }
+1115   1        */
+1116   1        Temp = (unsigned char)pTimeArray[4]+48;
+1117   1        switch(pTimeArray[4])
+1118   1        {
+1119   2        case Sunday:  Lcd_Write_String("SUN");  break;
+1120   2        case Monday:  Lcd_Write_String("MON");  break;
+1121   2        case Tuesday: Lcd_Write_String("TUE");  break;
+1122   2        case Wednesday: Lcd_Write_String("WED");  break;
+1123   2        case Thursday:  Lcd_Write_String("THU");  break;
+1124   2        case Friday:  Lcd_Write_String("FRI");  break;
+1125   2        case Saturday:  Lcd_Write_String("SAT");  break;
+1126   2      
+1127   2        /*default:  {Lcd_Write_String("?");
+1128   2                  Lcd_Write_Char(pTimeArray[4]+48); break;}*/
+1129   2        }
+1130   1      }
+1131          
+1132          void DisplayDateToLCD(unsigned char* pDateArray )  // Displays Date in DD:MM:YY @ Day format
+1133          {
+1134   1        Lcd_Set_Cursor(2,8);
+1135   1      
+1136   1        // Display Date
+1137   1        Lcd_Write_Char( (pDateArray[1]/10)+0x30 );
+1138   1        Lcd_Write_Char( (pDateArray[1]%10)+0x30 );
+1139   1      
+1140   1        //Display '/'
+1141   1        Lcd_Write_Char('/');
+1142   1      
+1143   1        //Display Month
+1144   1        Lcd_Write_Char( (pDateArray[2]/10)+0x30 );
+1145   1        Lcd_Write_Char( (pDateArray[2]%10)+0x30 );
+1146   1      
+1147   1        //Display '/'
+1148   1        Lcd_Write_Char('/');
+1149   1      
+1150   1        //Display Year
+1151   1        Lcd_Write_Char( (pDateArray[3]/10)+0x30 );
+1152   1        Lcd_Write_Char( (pDateArray[3]%10)+0x30 );
+1153   1      
+1154   1        //Display Space
+1155   1        Lcd_Write_Char(' ');
+1156   1      
+1157   1      
+1158   1        // Display Day
+1159   1      
+1160   1      }
+1161          
+1162          
+1163          void DisplayAlarmToLCD( unsigned char* pAlarmArray )   // Displays time in HH:MM:SS AM/PM format
+1164          {
+1165   1        Lcd_Set_Cursor(1,0);
+1166   1        // Display Hour
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 20  
+
+1167   1        Lcd_Write_Char( (pAlarmArray[2]/10)+0x30 );
+1168   1        Lcd_Write_Char( (pAlarmArray[2]%10)+0x30 );
+1169   1      
+1170   1        //Display ':'
+1171   1        Lcd_Write_Char(':');
+1172   1      
+1173   1        //Display Minutes
+1174   1        Lcd_Write_Char( (pAlarmArray[1]/10)+0x30 );
+1175   1        Lcd_Write_Char( (pAlarmArray[1]%10)+0x30 );
+1176   1      
+1177   1        //Display ':'
+1178   1        //Lcd_Write_Char(':');
+1179   1      
+1180   1        //Display Seconds
+1181   1      //  Lcd_Write_Char( (pAlarmArray[3]/10)+0x30 );
+1182   1      //  Lcd_Write_Char( (pAlarmArray[3]%10)+0x30 );
+1183   1      
+1184   1        //Display Space
+1185   1        Lcd_Write_Char(' ');
+1186   1      
+1187   1        switch(pAlarmArray[3])
+1188   1        {
+1189   2          case 1: Lcd_Write_String("Everyday  "); break;
+1190   2          case 2: Lcd_Write_String("Every2days"); break;
+1191   2          case 3: Lcd_Write_String("Every3days"); break;
+1192   2          case 4: Lcd_Write_String("Every4days"); break;
+1193   2          case 5: Lcd_Write_String("Every5days"); break;
+1194   2          case 6: Lcd_Write_String("Every6days"); break;
+1195   2          case 7: Lcd_Write_String("Every7days"); break;
+1196   2      
+1197   2          default: Lcd_Write_String("???"); break;
+1198   2        }
+1199   1        
+1200   1        Lcd_Set_Cursor(2,0);
+1201   1      
+1202   1        Lcd_Write_String(" B1-");
+1203   1      
+1204   1        Lcd_Write_Char( (pAlarmArray[4]/10)+0x30 );
+1205   1        Lcd_Write_Char( (pAlarmArray[4]%10)+0x30 );
+1206   1      
+1207   1        Lcd_Write_String(" B2-");
+1208   1      
+1209   1        Lcd_Write_Char( (pAlarmArray[5]/10)+0x30 );
+1210   1        Lcd_Write_Char( (pAlarmArray[5]%10)+0x30 );
+1211   1      
+1212   1        // Display mode
+1213   1        /*
+1214   1        switch(pTimeArray[3])
+1215   1        {
+1216   1        case AM_Time: Lcd_Write_Char("AM"); break;
+1217   1        case PM_Time: Lcd_Write_Char("PM"); break;
+1218   1      
+1219   1        default: Lcd_Write_Char('H'); break;
+1220   1        }
+1221   1        */
+1222   1      }
+1223          
+1224          void __delay_us(unsigned int d)
+1225          {
+1226   1         unsigned int i, limit;
+1227   1         limit = d/15;
+1228   1      
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 21  
+
+1229   1         for(i=0;i<limit;i++);
+1230   1      }
+1231          
+1232          void InitI2C(void)
+1233          {
+1234   1        // Function Purpose: Set initial values of SCK and SDA pins
+1235   1        // Make SDA and SCK pins input initially
+1236   1        SDA = 1;
+1237   1        SCK = 1;
+1238   1      }
+1239          
+1240          void I2C_Start(void)
+1241          {
+1242   1        // Function Purpose: I2C_Start sends start bit sequence
+1243   1        Set_SCK_High;       // Make SCK pin high
+1244   1        Set_SDA_High;       // Make SDA pin High
+1245   1        __delay_us(HalfBitDelay); // Half bit delay
+1246   1        Set_SDA_Low;        // Make SDA Low
+1247   1        __delay_us(HalfBitDelay); // Half bit delay
+1248   1      }
+1249          
+1250          void I2C_ReStart(void)
+1251          {
+1252   1        // Function Purpose: I2C_ReStart sends start bit sequence
+1253   1        Set_SCK_Low;        // Make SCK pin low
+1254   1      
+1255   1        __delay_us(HalfBitDelay/2); // Data pin should change it's value,
+1256   1                      // when it is confirm that SCK is low
+1257   1        Set_SDA_High;       // Make SDA pin High
+1258   1      
+1259   1        __delay_us(HalfBitDelay/2); // 1/4 bit delay
+1260   1        Set_SCK_High;       // Make SCK pin high
+1261   1        __delay_us(HalfBitDelay/2); // 1/4 bit delay
+1262   1        Set_SDA_Low;        // Make SDA Low
+1263   1        __delay_us(HalfBitDelay/2); // 1/4 bit delay
+1264   1      }
+1265          
+1266          void I2C_Stop(void)
+1267          {
+1268   1        //Function : I2C_Stop sends stop bit sequence
+1269   1        Set_SCK_Low;        // Make SCK pin low
+1270   1      
+1271   1        __delay_us(HalfBitDelay/2); // Data pin should change it's value,
+1272   1                      // when it is confirm that SCK is low
+1273   1        Set_SDA_Low;        // Make SDA pin low
+1274   1      
+1275   1        __delay_us(HalfBitDelay/2); // 1/4 bit delay
+1276   1        Set_SCK_High;       // Make SCK pin high
+1277   1        __delay_us(HalfBitDelay/2); // 1/4 bit delay
+1278   1        Set_SDA_High;       // Make SDA high
+1279   1        __delay_us(HalfBitDelay/2); // 1/4 bit delay
+1280   1      }
+1281          
+1282          void I2C_Send_ACK(void)
+1283          {
+1284   1        //Function : I2C_Send_ACK sends ACK bit sequence
+1285   1        Set_SCK_Low;        // Make SCK pin low
+1286   1        __delay_us(HalfBitDelay/2); // Data pin should change it's value,
+1287   1                      // when it is confirm that SCK is low
+1288   1        Set_SDA_Low;        // Make SDA Low
+1289   1        __delay_us(HalfBitDelay/2); // 1/4 bit delay
+1290   1        Set_SCK_High;       // Make SCK pin high
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 22  
+
+1291   1        __delay_us(HalfBitDelay); // Half bit delay
+1292   1      }
+1293          
+1294          void I2C_Send_NACK(void)
+1295          {
+1296   1        //Function : I2C_Send_NACK sends NACK bit sequence
+1297   1        Set_SCK_Low;        // Make SCK pin low
+1298   1        __delay_us(HalfBitDelay/2); // Data pin should change it's value,
+1299   1                      // when it is confirm that SCK is low
+1300   1        Set_SDA_High;       // Make SDA high
+1301   1        __delay_us(HalfBitDelay/2); // 1/4 bit delay
+1302   1        Set_SCK_High;       // Make SCK pin high
+1303   1        __delay_us(HalfBitDelay); // Half bit delay
+1304   1      }
+1305          
+1306          bit I2C_Write_Byte(unsigned char Byte)
+1307          {
+1308   1        // Function Purpose: I2C_Write_Byte transfers one byte
+1309   1        unsigned char i;    // Variable to be used in for loop
+1310   1      
+1311   1        for(i=0;i<8;i++)    // Repeat for every bit
+1312   1        {
+1313   2          Set_SCK_Low;    // Make SCK pin low
+1314   2      
+1315   2          __delay_us(HalfBitDelay/2); // Data pin should change it's value,
+1316   2                        // when it is confirm that SCK is low
+1317   2      
+1318   2          if((Byte<<i)&0x80)  // Place data bit value on SDA pin
+1319   2            Set_SDA_High; // If bit is high, make SDA high
+1320   2          else        // Data is transferred MSB first
+1321   2            Set_SDA_Low;  // If bit is low, make SDA low
+1322   2      
+1323   2          __delay_us(HalfBitDelay/2); // Toggle SCK pin
+1324   2          Set_SCK_High;       // So that slave can
+1325   2          __delay_us(HalfBitDelay); // latch data bit
+1326   2          }
+1327   1      
+1328   1        // Get ACK from slave
+1329   1        Set_SCK_Low;
+1330   1          Set_SDA_High;
+1331   1          __delay_us(HalfBitDelay);
+1332   1          Set_SCK_High;
+1333   1          __delay_us(HalfBitDelay);
+1334   1      
+1335   1        return SDA;
+1336   1      }
+1337          
+1338          unsigned char I2C_Read_Byte(void)
+1339          {
+1340   1        // Function Purpose: I2C_Read_Byte reads one byte
+1341   1        unsigned char i, d, RxData = 0;
+1342   1      
+1343   1        for(i=0;i<8;i++)
+1344   1        {
+1345   2          Set_SCK_Low;          // Make SCK pin low
+1346   2          Set_SDA_High;         // Don't drive SDA
+1347   2          __delay_us(HalfBitDelay);   // Half bit delay
+1348   2          Set_SCK_High;         // Make SCK pin high
+1349   2          __delay_us(HalfBitDelay/2);   // 1/4 bit delay
+1350   2          d = SDA;              // Capture Received Bit
+1351   2          RxData = RxData|(d<<(7-i));   // Copy it in RxData
+1352   2          __delay_us(HalfBitDelay/2);   // 1/4 bit delay
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 23  
+
+1353   2        }
+1354   1      
+1355   1          return RxData;            // Return received byte
+1356   1      }
+1357          
+1358          void Write_Byte_To_RTC(unsigned char Address, unsigned char DataByte)
+1359          {
+1360   1        /*
+1361   1        // Function Purpose: Write_Byte_To_RTC writes a single byte on given address
+1362   1        // Address can have any value fromm 0 to 0xFF, and DataByte can have a value of 0 to 0xFF.
+1363   1        */
+1364   1        I2C_Start();                    // Start i2c communication
+1365   1      
+1366   1        // Send i2c address of DS1307 with write command
+1367   1        while(I2C_Write_Byte(Device_Address_RTC + 0) == 1)// Wait until device is free
+1368   1        { I2C_Start();  }
+1369   1      
+1370   1        I2C_Write_Byte(Address);              // Write Address byte
+1371   1        I2C_Write_Byte(DataByte);             // Write data byte
+1372   1        I2C_Stop();                     // Stop i2c communication
+1373   1      }
+1374          
+1375          unsigned char Read_Byte_From_RTC(unsigned char Address)
+1376          {
+1377   1        /*
+1378   1        Function Purpose: Read_Byte_From_RTC reads a single byte from given address
+1379   1        Address can have any value fromm 0 to 0xFF.
+1380   1        */
+1381   1        unsigned char Byte = 0;               // Variable to store Received byte
+1382   1      
+1383   1        I2C_Start();                    // Start i2c communication
+1384   1      
+1385   1        // Send i2c address of DS1307 with write command
+1386   1        while(I2C_Write_Byte(Device_Address_RTC + 0) == 1)// Wait until device is free
+1387   1        { I2C_Start();  }
+1388   1      
+1389   1        I2C_Write_Byte(Address);              // Write Address byte
+1390   1        I2C_ReStart();                    // Restart i2c
+1391   1      
+1392   1        // Send i2c address of DS1307 RTC with read command
+1393   1        I2C_Write_Byte(Device_Address_RTC + 1);
+1394   1      
+1395   1        Byte = I2C_Read_Byte();               // Read byte from EEPROM
+1396   1      
+1397   1        // Make SCK low, so that slave can stop driving SDA pin
+1398   1        // Send a NACK to indiacate single byte read is complete
+1399   1        I2C_Send_NACK();
+1400   1      
+1401   1        // Send start bit and then stop bit to stop transmission
+1402   1        Set_SDA_Low;        // Make SDA Low
+1403   1        __delay_us(HalfBitDelay); // Half bit delay
+1404   1        Set_SDA_High;       // Make SDA high
+1405   1        __delay_us(HalfBitDelay); // Half bit delay
+1406   1      
+1407   1        return Byte;        // Return the byte received from 24LC64 EEPROM
+1408   1      }
+1409          
+1410          void Write_Bytes_To_RTC(unsigned char Address,unsigned char* pData,unsigned char NoOfBytes)
+1411          {
+1412   1        /*
+1413   1        Function Purpose: Write_Bytes_To_RTC writes mulitple bytes from given starting address.
+1414   1        Address can have any value fromm 0 to 0xFF and pData is pointer to the array
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 24  
+
+1415   1        containing NoOfBytes bytes in it. NoOfBytes is the number of bytes to write.
+1416   1        */
+1417   1        unsigned int i;
+1418   1      
+1419   1        I2C_Start();                    // Start i2c communication
+1420   1      
+1421   1        // Send i2c address of DS1307 with write command
+1422   1        while(I2C_Write_Byte(Device_Address_RTC + 0) == 1)// Wait until device is free
+1423   1        { I2C_Start();  }
+1424   1      
+1425   1        I2C_Write_Byte(Address);              // Write Address byte
+1426   1      
+1427   1        for(i=0;i<NoOfBytes;i++)              // Write NoOfBytes
+1428   1          I2C_Write_Byte(pData[i]);           // Write data byte
+1429   1      
+1430   1        I2C_Stop();                     // Stop i2c communication
+1431   1      }
+1432          
+1433          void Read_Bytes_From_RTC(unsigned char Address, unsigned char* pData, unsigned int NoOfBytes)
+1434          {
+1435   1        /*
+1436   1       Function Purpose: Read_Bytes_From_RTC reads a NoOfBytes bytes from given starting address.
+1437   1       Address can have any value fromm 0 to 0xFF. NoOfBytes is the number of bytes to write.
+1438   1       Read bytes are returned in pData array.
+1439   1        */
+1440   1        unsigned int i;
+1441   1      
+1442   1        I2C_Start();                    // Start i2c communication
+1443   1      
+1444   1        // Send i2c address of DS1307 with write command
+1445   1        while(I2C_Write_Byte(Device_Address_RTC + 0) == 1)// Wait until device is free
+1446   1        { I2C_Start();  }
+1447   1      
+1448   1        I2C_Write_Byte(Address);              // Write Address byte
+1449   1        I2C_ReStart();                    // Restart i2c
+1450   1      
+1451   1        // Send i2c address of DS1307 RTC with read command
+1452   1        I2C_Write_Byte(Device_Address_RTC + 1);
+1453   1      
+1454   1        pData[0] = I2C_Read_Byte();             // Read First byte from EEPROM
+1455   1      
+1456   1        for(i=1;i<NoOfBytes;i++)              // Read NoOfBytes
+1457   1        {
+1458   2          I2C_Send_ACK();         // Give Ack to slave to start receiving next byte
+1459   2          pData[i] = I2C_Read_Byte();   // Read next byte from EEPROM
+1460   2        }
+1461   1      
+1462   1        // Make SCK low, so that slave can stop driving SDA pin
+1463   1        // Send a NACK to indiacate read operation is complete
+1464   1        I2C_Send_NACK();
+1465   1      
+1466   1        // Send start bit and then stop bit to stop transmission
+1467   1        Set_SDA_Low;        // Make SDA Low
+1468   1        __delay_us(HalfBitDelay); // Half bit delay
+1469   1        Set_SDA_High;       // Make SDA high
+1470   1        __delay_us(HalfBitDelay); // Half bit delay
+1471   1      }
+1472          
+1473          bit isRTCStopped()
+1474          {
+1475   1        //bit 7 of the seconds register stopps the clock when high
+1476   1        return ((pRTCArrayTime[0] & 0x80) == 0x80);
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 25  
+
+1477   1      }
+1478          
+1479          void stopRTC()
+1480          {
+1481   1        //"Bit 7 of register 0 is the clock halt (CH) bit.
+1482   1        //When this bit is set to a 1, the oscillator is disabled."
+1483   1        pRTCArrayTime[0] = pRTCArrayTime[0] | 0x80;
+1484   1        Write_Byte_To_RTC(0x00, pRTCArrayTime[0]);
+1485   1      }
+1486          
+1487          void startRTC()
+1488          {
+1489   1        //"Bit 7 of register 0 is the clock halt (CH) bit.
+1490   1        //When this bit is set to a 1, the oscillator is disabled."
+1491   1        pRTCArrayTime[0] = pRTCArrayTime[0] & ~0x80;
+1492   1        Write_Byte_To_RTC(0x00, pRTCArrayTime[0]);
+1493   1      }
+1494          
+1495          void Set_RTC_Time(unsigned char Day, unsigned char Mode, unsigned char Hours, unsigned char Mins, unsigned
+             - char Secs)
+1496          {
+1497   1        /*
+1498   1        Function Purpose: Set_RTC_Time sets given time in RTC registers.
+1499   1        Mode can have a value AM_Time or PM_Time  or TwentyFourHoursMode only.
+1500   1        Hours can have value from 0 to 23 only.
+1501   1        Mins can have value from 0 to 59 only.
+1502   1        Secs can have value from 0 to 59 only.
+1503   1        */
+1504   1        // Convert Hours, Mins, Secs into BCD
+1505   1        pRTCArrayTime[0] = (((unsigned char)(Secs/10))<<4)|((unsigned char)(Secs%10));
+1506   1        pRTCArrayTime[1] = (((unsigned char)(Mins/10))<<4)|((unsigned char)(Mins%10));
+1507   1        pRTCArrayTime[2] = (((unsigned char)(Hours/10))<<4)|((unsigned char)(Hours%10));
+1508   1        pRTCArrayTime[3] = (((unsigned char)(Day/10))<<4)|((unsigned char)(Day%10));
+1509   1      
+1510   1        //pRTCArrayTime[0] = pRTCArrayTime[0]&(0x00);
+1511   1      
+1512   1        switch(Mode)  // Set mode bits
+1513   1        {
+1514   2        case AM_Time:   pRTCArrayTime[2] |= 0x40; break;
+1515   2        case PM_Time:   pRTCArrayTime[2] |= 0x60; break;
+1516   2      
+1517   2        default:  break;  // do nothing for 24HoursMode
+1518   2        }
+1519   1      
+1520   1        // WritepRTCArray to DS1307
+1521   1        Write_Bytes_To_RTC(0x00, pRTCArrayTime, 4);
+1522   1      }
+1523          
+1524          void Get_RTC_Time(void)
+1525          {
+1526   1        /*
+1527   1       Function Purpose: Get_RTC_Time returns current time from RTC registers.
+1528   1       Pointer to pRTCArray is returned, in this array
+1529   1       pRTCArray[3] can have a value AM_Time or PM_Time or TwentyFourHoursMode only.
+1530   1       pRTCArray[2] (Hours byte) can have value from 0 to 23 only.
+1531   1       pRTCArray[1] (Mins byte) can have value from 0 to 59 only.
+1532   1       pRTCArray[0] (Secs byte) can have value from 0 to 59 only.
+1533   1        */
+1534   1        // Read Hours, Mins, Secs register from RTC
+1535   1        Read_Bytes_From_RTC(0x00, pRTCArrayTime, 4);
+1536   1      
+1537   1        // Convert Secs back from BCD into number
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 26  
+
+1538   1        Temp = pRTCArrayTime[0];
+1539   1        pRTCArrayTime[0] = ((Temp&0x7F)>>4)*10 + (Temp&0x0F);
+1540   1      
+1541   1        // Convert Mins back from BCD into number
+1542   1        Temp = pRTCArrayTime[1];
+1543   1        pRTCArrayTime[1] = (Temp>>4)*10 + (Temp&0x0F);
+1544   1      
+1545   1        // Convert Days back from BCD into number
+1546   1        pRTCArrayTime[4] = pRTCArrayTime[3];
+1547   1        //pRTCArrayTime[4] = (Temp>>4)*10 + (Temp&0x0F);
+1548   1      
+1549   1        // Convert Hours back from BCD into number
+1550   1        if(pRTCArrayTime[2]&0x40) // if 12 hours mode
+1551   1        {
+1552   2          if(pRTCArrayTime[2]&0x20) // if PM Time
+1553   2            pRTCArrayTime[3] = PM_Time;
+1554   2          else    // if AM time
+1555   2            pRTCArrayTime[3] = AM_Time;
+1556   2      
+1557   2          Temp = pRTCArrayTime[2];
+1558   2          pRTCArrayTime[2] = ((Temp&0x1F)>>4)*10 + (Temp&0x0F);
+1559   2        }
+1560   1        else    // if 24 hours mode
+1561   1        {
+1562   2          Temp = pRTCArrayTime[2];
+1563   2          pRTCArrayTime[2] = (Temp>>4)*10 + (Temp&0x0F);
+1564   2          pRTCArrayTime[3] = TwentyFourHoursMode;
+1565   2        }
+1566   1      
+1567   1      //  return pRTCArrayTime;
+1568   1      }
+1569          
+1570          void Set_RTC_Date(unsigned char Date, unsigned char Month, unsigned char Year)
+1571          {
+1572   1        /* Function Purpose: Set_RTC_Date sets given date in RTC registers.
+1573   1        Year can have a value from 0 to 99 only.
+1574   1        Month can have value from 1 to 12 only.
+1575   1        Date can have value from 1 to 31 only.
+1576   1        Day can have value from 1 to 7 only. Where 1 means Monday, 2 means Tuesday etc.
+1577   1        */
+1578   1        // Convert Year, Month, Date, Day into BCD
+1579   1        //pRTCArrayDate[0] = (((unsigned char)(Day/10))<<4)|((unsigned char)(Day%10));
+1580   1        pRTCArrayDate[0] = (((unsigned char)(Date/10))<<4)|((unsigned char)(Date%10));
+1581   1        pRTCArrayDate[1] = (((unsigned char)(Month/10))<<4)|((unsigned char)(Month%10));
+1582   1        pRTCArrayDate[2] = (((unsigned char)(Year/10))<<4)|((unsigned char)(Year%10));
+1583   1      
+1584   1        // WritepRTCArray to DS1307
+1585   1        Write_Bytes_To_RTC(0x04, pRTCArrayDate, 3);
+1586   1      }
+1587          
+1588          void Get_RTC_Date(void)
+1589          {
+1590   1        /*
+1591   1        Function Purpose: Get_RTC_Date returns current date from RTC registers.
+1592   1        Pointer to pRTCArray is returned, in this array
+1593   1        pRTCArray[3] (Year byte) can have value from 0 to 99 only.
+1594   1        pRTCArray[2] (Month byte) can have value from 1 to 12 only.
+1595   1        pRTCArray[1] (Date byte) can have value from 1 to 31 only.
+1596   1        pRTCArray[0] (Day byte) can have value from 1 to 7 only.
+1597   1        */
+1598   1        // Read Hours, Mins, Secs register from RTC
+1599   1        Read_Bytes_From_RTC(0x04, pRTCArrayDate, 3);
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 27  
+
+1600   1      
+1601   1        // Convert Date back from BCD into number
+1602   1        Temp = pRTCArrayDate[0];
+1603   1        pRTCArrayDate[0] = (Temp>>4)*10 + (Temp&0x0F);
+1604   1      
+1605   1        // Convert Month back from BCD into number
+1606   1        Temp = pRTCArrayDate[1];
+1607   1        pRTCArrayDate[1] = (Temp>>4)*10 + (Temp&0x0F);
+1608   1      
+1609   1        // Convert Year back from BCD into number
+1610   1        Temp = pRTCArrayDate[2];
+1611   1        pRTCArrayDate[2] = (Temp>>4)*10 + (Temp&0x0F);
+1612   1      
+1613   1      //  return pRTCArrayDate;
+1614   1      }
+1615          
+1616          void Write_Byte_To_EEPROM(unsigned char Address, unsigned char DataByte)
+1617          {
+1618   1        /*
+1619   1        // Function Purpose: Write_Byte_To_RTC writes a single byte on given address
+1620   1        // Address can have any value fromm 0 to 0xFF, and DataByte can have a value of 0 to 0xFF.
+1621   1        */
+1622   1        I2C_Start();                    // Start i2c communication
+1623   1      
+1624   1        // Send i2c address of DS1307 with write command
+1625   1        while(I2C_Write_Byte(Device_Address_EEPROM + 0) == 1)// Wait until device is free
+1626   1        { I2C_Start();  }
+1627   1      
+1628   1        I2C_Write_Byte(Address);              // Write Address byte
+1629   1        I2C_Write_Byte(DataByte);             // Write data byte
+1630   1        I2C_Stop();                     // Stop i2c communication
+1631   1      }
+1632          
+1633          unsigned char Read_Byte_From_EEPROM(unsigned char Address)
+1634          {
+1635   1        /*
+1636   1        Function Purpose: Read_Byte_From_RTC reads a single byte from given address
+1637   1        Address can have any value fromm 0 to 0xFF.
+1638   1        */
+1639   1        unsigned char Byte = 0;               // Variable to store Received byte
+1640   1      
+1641   1        I2C_Start();                    // Start i2c communication
+1642   1      
+1643   1        // Send i2c address of DS1307 with write command
+1644   1        while(I2C_Write_Byte(Device_Address_EEPROM + 0) == 1)// Wait until device is free
+1645   1        { I2C_Start();  }
+1646   1      
+1647   1        I2C_Write_Byte(Address);              // Write Address byte
+1648   1        I2C_ReStart();                    // Restart i2c
+1649   1      
+1650   1        // Send i2c address of DS1307 RTC with read command
+1651   1        I2C_Write_Byte(Device_Address_EEPROM + 1);
+1652   1      
+1653   1        Byte = I2C_Read_Byte();               // Read byte from EEPROM
+1654   1      
+1655   1        // Make SCK low, so that slave can stop driving SDA pin
+1656   1        // Send a NACK to indiacate single byte read is complete
+1657   1        I2C_Send_NACK();
+1658   1      
+1659   1        // Send start bit and then stop bit to stop transmission
+1660   1        Set_SDA_Low;        // Make SDA Low
+1661   1        __delay_us(HalfBitDelay); // Half bit delay
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 28  
+
+1662   1        Set_SDA_High;       // Make SDA high
+1663   1        __delay_us(HalfBitDelay); // Half bit delay
+1664   1      
+1665   1        return Byte;        // Return the byte received from 24LC64 EEPROM
+1666   1      }
+1667          
+1668          void Write_Bytes_To_EEPROM(unsigned char Address,unsigned char* pData,unsigned char NoOfBytes)
+1669          {
+1670   1        /*
+1671   1        Function Purpose: Write_Bytes_To_RTC writes mulitple bytes from given starting address.
+1672   1        Address can have any value fromm 0 to 0xFF and pData is pointer to the array
+1673   1        containing NoOfBytes bytes in it. NoOfBytes is the number of bytes to write.
+1674   1        */
+1675   1        unsigned int i;
+1676   1      
+1677   1        I2C_Start();                    // Start i2c communication
+1678   1      
+1679   1        // Send i2c address of DS1307 with write command
+1680   1        while(I2C_Write_Byte(Device_Address_EEPROM + 0) == 1)// Wait until device is free
+1681   1        { I2C_Start();  }
+1682   1      
+1683   1        I2C_Write_Byte(Address);              // Write Address byte
+1684   1      
+1685   1        for(i=0;i<NoOfBytes;i++)              // Write NoOfBytes
+1686   1          I2C_Write_Byte(pData[i]);           // Write data byte
+1687   1      
+1688   1        I2C_Stop();                     // Stop i2c communication
+1689   1      }
+1690          
+1691          void Read_Bytes_From_EEPROM(unsigned char Address, unsigned char* pData, unsigned int NoOfBytes)
+1692          {
+1693   1        /*
+1694   1       Function Purpose: Read_Bytes_From_RTC reads a NoOfBytes bytes from given starting address.
+1695   1       Address can have any value fromm 0 to 0xFF. NoOfBytes is the number of bytes to write.
+1696   1       Read bytes are returned in pData array.
+1697   1        */
+1698   1        unsigned int i;
+1699   1      
+1700   1        I2C_Start();                    // Start i2c communication
+1701   1      
+1702   1        // Send i2c address of DS1307 with write command
+1703   1        while(I2C_Write_Byte(Device_Address_EEPROM + 0) == 1)// Wait until device is free
+1704   1        { I2C_Start();  }
+1705   1      
+1706   1        I2C_Write_Byte(Address);              // Write Address byte
+1707   1        I2C_ReStart();                    // Restart i2c
+1708   1      
+1709   1        // Send i2c address of DS1307 RTC with read command
+1710   1        I2C_Write_Byte(Device_Address_EEPROM + 1);
+1711   1      
+1712   1        pData[0] = I2C_Read_Byte();             // Read First byte from EEPROM
+1713   1      
+1714   1        for(i=1;i<NoOfBytes;i++)              // Read NoOfBytes
+1715   1        {
+1716   2          I2C_Send_ACK();         // Give Ack to slave to start receiving next byte
+1717   2          pData[i] = I2C_Read_Byte();   // Read next byte from EEPROM
+1718   2        }
+1719   1      
+1720   1        // Make SCK low, so that slave can stop driving SDA pin
+1721   1        // Send a NACK to indiacate read operation is complete
+1722   1        I2C_Send_NACK();
+1723   1      
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 29  
+
+1724   1        // Send start bit and then stop bit to stop transmission
+1725   1        Set_SDA_Low;        // Make SDA Low
+1726   1        __delay_us(HalfBitDelay); // Half bit delay
+1727   1        Set_SDA_High;       // Make SDA high
+1728   1        __delay_us(HalfBitDelay); // Half bit delay
+1729   1      }
+1730          
+1731          void Get_EEPROM_Alarm(int Alarm_Num)
+1732          {
+1733   1        /*
+1734   1       Function Purpose: Get_EEPROM_Alarm returns current time from RTC registers.
+1735   1       Pointer to pRTCArray is returned, in this array
+1736   1       pRTCArray[3] can have a value AM_Time or PM_Time or TwentyFourHoursMode only.
+1737   1       pRTCArray[2] (Hours byte) can have value from 0 to 23 only.
+1738   1       pRTCArray[1] (Mins byte) can have value from 0 to 59 only.
+1739   1       pRTCArray[0] (Secs byte) can have value from 0 to 59 only.
+1740   1        */
+1741   1      
+1742   1        // Read Hours, Mins, Secs register from RTC
+1743   1        Read_Bytes_From_EEPROM(Alarm_Memory+1+((Alarm_Num-1)*6), pAlarmArray, 6);
+1744   1      
+1745   1        // Convert Secs back from BCD into number
+1746   1      
+1747   1        Temp = pAlarmArray[0];
+1748   1        pAlarmArray[0] = ((Temp>>4)*10 + (Temp&0x0F));
+1749   1      
+1750   1        // Convert Mins back from BCD into number
+1751   1        Temp = pAlarmArray[1];
+1752   1        pAlarmArray[1] = ((Temp>>4)*10 + (Temp&0x0F));
+1753   1      
+1754   1        Temp = pAlarmArray[2];
+1755   1        pAlarmArray[2] = ((Temp>>4)*10 + (Temp&0x0F));
+1756   1      
+1757   1        Temp = pAlarmArray[3];
+1758   1        pAlarmArray[3] = ((Temp>>4)*10 + (Temp&0x0F));
+1759   1      
+1760   1        Temp = pAlarmArray[4];
+1761   1        pAlarmArray[4] = ((Temp>>4)*10 + (Temp&0x0F));
+1762   1      
+1763   1        Temp = pAlarmArray[5];
+1764   1        pAlarmArray[5] = ((Temp>>4)*10 + (Temp&0x0F));
+1765   1      
+1766   1      /*
+1767   1        // Convert Hours back from BCD into number
+1768   1        if(pAlarmArray[2]&0x40) // if 12 hours mode
+1769   1        {
+1770   1          if(pAlarmArray[2]&0x20) // if PM Time
+1771   1            pAlarmArray[3] = PM_Time;
+1772   1          else    // if AM time
+1773   1            pAlarmArray[3] = AM_Time;
+1774   1      
+1775   1          Temp = pAlarmArray[2];
+1776   1          pAlarmArray[2] = ((Temp&0x1F)>>4)*10 + (Temp&0x0F);
+1777   1        }
+1778   1        else    // if 24 hours mode
+1779   1        {
+1780   1          Temp = pAlarmArray[2];
+1781   1          pAlarmArray[2] = (Temp>>4)*10 + (Temp&0x0F);
+1782   1          pAlarmArray[3] = TwentyFourHoursMode;
+1783   1        }
+1784   1      */
+1785   1        //return pAlarmArray;
+C51 COMPILER V9.54   PILL3                                                                 05/12/2016 16:12:29 PAGE 30  
+
+1786   1      
+1787   1      }
+1788          
+1789          void Add_EEPROM_Alarm(unsigned char* pData)
+1790          {
+1791   1        alarms=Read_Byte_From_EEPROM(Alarm_Memory);
+1792   1      /*
+1793   1        pAlarmArray[0] = (((unsigned char)(pData[0]/10))<<4)|((unsigned char)(pData[0]%10));
+1794   1        pAlarmArray[1] = (((unsigned char)(pData[1]/10))<<4)|((unsigned char)(pData[1]%10));
+1795   1        pAlarmArray[2] = (((unsigned char)(pData[2]/10))<<4)|((unsigned char)(pData[2]%10));
+1796   1        pAlarmArray[3] = (((unsigned char)(pData[3]/10))<<4)|((unsigned char)(pData[3]%10));
+1797   1        pAlarmArray[4] = (((unsigned char)(pData[4]/10))<<4)|((unsigned char)(pData[4]%10));
+1798   1        pAlarmArray[5] = (((unsigned char)(pData[5]/10))<<4)|((unsigned char)(pData[5]%10));
+1799   1      */
+1800   1        Write_Bytes_To_EEPROM((Alarm_Memory+1+(alarms*6)),pData,6);
+1801   1        alarms++;
+1802   1        Write_Byte_To_EEPROM(Alarm_Memory,alarms);
+1803   1      
+1804   1      
+1805   1      }
+1806          
+1807          void Delete_EEPROM_Alarm(int Alarm_Num)
+1808          {
+1809   1        alarms=Read_Byte_From_EEPROM(Alarm_Memory);
+1810   1        for(i=Alarm_Num;i<alarms;i++)
+1811   1        {
+1812   2        Read_Bytes_From_EEPROM((Alarm_Memory+1+((Alarm_Num+i-1+1)*6)), pAlarmArray, 6);
+1813   2        Write_Bytes_To_EEPROM((Alarm_Memory+1+((Alarm_Num+i-1)*6)), pAlarmArray, 6);
+1814   2        }
+1815   1        alarms--;
+1816   1        Write_Byte_To_EEPROM(Alarm_Memory,alarms);
+1817   1      
+1818   1        //Write_Bytes_To_EEPROM((Alarm_Memory+1+(alarms*4)),pData,4);
+1819   1        //Write_Byte_To_EEPROM(Alarm_Memory,alarms);
+1820   1      }
+1821          
+1822          
+1823          
+1824          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   5064    ----
+   CONSTANT SIZE    =    482    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     34      62
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
