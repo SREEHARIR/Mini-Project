@@ -51,3 +51,124 @@ void I2C_Send_NACK(void);
 bit	I2C_Write_Byte(unsigned char);
 unsigned char I2C_Read_Byte(void);
 
+//---------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------
+
+// Define EEPROM i2c device address
+#define Device_Address_EEPROM	0xA0
+
+#define Alarm_Memory 0x00
+
+void Write_Byte_To_EEPROM(unsigned char, unsigned char);
+unsigned char Read_Byte_From_EEPROM(unsigned char);
+void Write_Bytes_To_EEPROM(unsigned char,unsigned char* ,unsigned char);
+void Read_Bytes_From_EEPROM(unsigned char, unsigned char* , unsigned int);
+void Get_EEPROM_Alarm(int);
+void Add_EEPROM_Alarm(unsigned char*);
+void DisplayAlarmToLCD(unsigned char*);
+void Delete_EEPROM_Alarm(int);
+
+unsigned char pAlarmArray[6];
+
+//---------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------
+
+
+// Define DS1307 i2c device address
+#define Device_Address_RTC	0xD0
+
+// Define Time Modes
+#define AM_Time					0
+#define PM_Time					1
+#define TwentyFourHoursMode		2
+
+// Define days
+#define Sunday		1
+#define Monday		2
+#define Tuesday		3
+#define Wednesday	4
+#define Thursday	5
+#define Friday		6
+#define Saturday	7
+
+// Function Declarations
+void Write_Byte_To_RTC(unsigned char, unsigned char);
+unsigned char Read_Byte_From_RTC(unsigned char);
+void Write_Bytes_To_RTC(unsigned char,unsigned char*,unsigned char);
+void Read_Bytes_From_RTC(unsigned char,unsigned char*,unsigned int);
+void Set_RTC_Time(unsigned char,unsigned char,unsigned char,unsigned char,unsigned char);
+void Get_RTC_Time(void);
+void Set_RTC_Date(unsigned char,unsigned char,unsigned char);
+void Get_RTC_Date(void);
+bit isRTCStopped();
+void startRTC();
+void stopRTC();
+
+// Global RTC Array and temp variable
+unsigned char pRTCArrayTime[5];
+unsigned char pRTCArrayDate[3];
+unsigned char Temp,Prev_Day;
+
+//---------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------
+
+void DisplayTimeToLCD(unsigned char*) ;
+void DisplayDateToLCD( unsigned char*);
+
+//----------------------------------------------------------------------------------------------------
+
+/*
+fn -> 0-time, 1-set_time, 2-add_alarm(yes/no), 3-remove_alarm(yes/no)
+*/
+/*
+saving in eeprom ->
+0x00	 - num of alarms
+arr[0] -> 0x01*i - motor 1 rotation & motor 2 rotation
+arr[1] -> 0x02*i - min of alarm i
+arr[2] -> 0x03*i - hr of alarm i
+arr[3] -> 0x04*i - day of alarm i
+
+*/
+//char tim[4],timchk[4];
+//int timi[4];
+/*
+tim 		-> 0-sec,		1-min, 2-hr, 3-day //read from rtc
+timchk	-> 0-motor, 1-min, 2-hr, 3-day //read from mem
+*/
+
+void delay(int i);
+void Lcd_Port(char a);
+void Lcd_Cmd(char a);
+void Lcd_Clear();
+void Lcd_Set_Cursor(char a, char b);
+void Lcd_Init();
+void Lcd_Write_Char(char a);
+void Lcd_Write_String(char *a);
+//void start(void);
+//void stop();
+//void write(unsigned char dat);
+//void ack(void);
+//void noack(void);
+//unsigned char read();
+//void save_i2c(char dev,char addr,char ch);
+//char read_i2c(char dev,char addr);
+//void time(void);
+//void display_time(void);
+void check_alarm(void);
+//unsigned char Bcd_to_dec (unsigned char val);
+//unsigned char Dec_to_bcd (unsigned char val);
+
+
+// TODO //
+//void interpt(void);
+void funtions(void);
+void motor(int m1,int m2);
+//void sort(void);
+void alarm(void);
+//void display_alarm(int num);
+//void delete_alarm(int num);
+//void add_alarm(void);
+void wipe(void);
+//// TODO //
+
+
