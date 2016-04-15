@@ -172,3 +172,17 @@ void wipe(void);
 //// TODO //
 
 
+
+void delay(int i)
+{
+	int j;
+	while(i--)
+		for(j=0;j<1000;j++);
+}
+
+void wipe(void)
+{
+for(i=0;i<10;i++){
+	Write_Byte_To_EEPROM(i,0x00);
+}
+}
