@@ -186,3 +186,109 @@ for(i=0;i<10;i++){
 	Write_Byte_To_EEPROM(i,0x00);
 }
 }
+
+void check_alarm(void)
+{
+	alarms=Read_Byte_From_EEPROM(Alarm_Memory);
+	//alarms=alarms-48;
+	//Lcd_Write_Char(alarms+48);
+	for(i=1;i<=alarms;i++)
+	{
+		Get_EEPROM_Alarm(i);
+		//tempchr=((timchk[2]&0xF0)>>4);
+		//timchk[2]=timchk[2]&0x0F;
+		Alarm_Over = pAlarmArray[0];
+		Alarm_Day = pAlarmArray[3];
+		Time_Day = pRTCArrayTime[3];
+		if((pAlarmArray[1] == pRTCArrayTime[1]) && (pAlarmArray[2] == pRTCArrayTime[2]) && (( Time_Day % Alarm_Day ) == 0) && (Alarm_Over)==0) //check min hr day
+		{
+			//timchk[3]+=tempchr;
+			//tempchr=(tempchr<<4);
+			//timchk[3]=(timchk[3]|tempchr);
+			Write_Byte_To_EEPROM(Alarm_Memory+1+((i-1)*6),1); // save if alarm over in day register bits 4
+			motor(pAlarmArray[4],pAlarmArray[5]);
+			alarm();
+		}
+	}
+}
+
+void alarm()
+{
+	Lcd_Clear();
+	Lcd_Set_Cursor(1,0);
+	Lcd_Write_String("Take Pill");
+	while(1)
+	{
+		//buzzer=0;
+		//led=0;
+		if((sw_1==1) || (sw_2==1) )//|| (ir==0))
+		{
+			buzzer=1;
+			led=1;
+			while((sw_1==1) || (sw_2==1));
+			Lcd_Clear();
+			Lcd_Set_Cursor(1,0);
+			return;
+		}
+		Get_RTC_Time();
+		DisplayTimeToLCD(pRTCArrayTime);
+		if((pRTCArrayTime[1]) < ((pAlarmArray[1])+1))
+		{
+			buzzer=1;
+			led=1;
+			delay(1);
+			buzzer=0;
+			led=0;
+			delay(1);
+		}
+		else
+		{
+			buzzer=1;
+			led=1;
+			delay(2);
+			buzzer=0;
+			led=0;
+			delay(2);
+		}
+	}
+}
+/*
+void display_alarm(int Alarm_Num)
+{
+	Lcd_Set_Cursor(1,0);
+	Lcd_Write_String("Alarm");
+	Lcd_Write_Char(Alarm_Num+48);
+
+	Get_EEPROM_Alarm(Alarm_Num);
+
+	Lcd_Set_Cursor(2,0);
+	Lcd_Write_Char(pAlarmArray[2]/10+48);
+	Lcd_Write_Char(pAlarmArray[2]%10+48);
+	Lcd_Write_Char(':');
+	Lcd_Write_Char(pAlarmArray[1]/10+48);
+	Lcd_Write_Char(pAlarmArray[1]%10+48);
+	Lcd_Write_Char(' ');
+	Temp=(pAlarmArray[3]%10);
+	Lcd_Set_Cursor(2,6);
+	switch(pAlarmArray[3])
+	{
+		case 1:	Lcd_Write_String("Everyday  ");	break;
+		case 2:	Lcd_Write_String("Every2days");	break;
+		case 3:	Lcd_Write_String("Every3days");	break;
+		case 4:	Lcd_Write_String("Every4days");	break;
+		case 5:	Lcd_Write_String("Every5days");	break;
+		case 6:	Lcd_Write_String("Every6days");	break;
+		case 7:	Lcd_Write_String("Every7days");	break;
+
+		default: Lcd_Write_String("???");	break;
+	}
+	Lcd_Set_Cursor(2,7);
+	Lcd_Write_String("B1-");
+	Lcd_Write_Char(pAlarmArray[4]/10+48);
+	Lcd_Write_Char(pAlarmArray[4]%10+48);
+	Lcd_Write_String(" B2-");
+	Lcd_Write_Char(pAlarmArray[4]/10+48);
+	Lcd_Write_Char(pAlarmArray[4]%10+48);
+
+}
+*/
