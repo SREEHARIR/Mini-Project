@@ -292,3 +292,39 @@ void display_alarm(int Alarm_Num)
 
 }
 */
+void motor(int m1, int m2)
+{
+	for(i=0;i<m1;i++)
+	{
+		for(j=0;j<4;j++)
+		{
+			BOX=0x01;
+			delay(5);
+			BOX=0x04;
+			delay(5);
+			BOX=0x02;
+			delay(5);
+			BOX=0x08;
+			delay(5);
+		}
+	}
+	BOX=0x00;
+	for(i=0;i<m2;i++)
+	{
+		for(j=0;j<4;j++)
+		{
+			BOX=0x10;
+			delay(5);
+			BOX=0x40;
+			delay(5);
+			BOX=0x20;
+			delay(5);
+			BOX=0x80;
+			delay(5);
+		}
+	}
+	BOX=0x00;
+	//alarm();
+}
+
+
