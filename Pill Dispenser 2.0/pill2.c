@@ -328,3 +328,16 @@ void motor(int m1, int m2)
 }
 
 
+void Refresh_New_Day(void)
+{
+	if(Prev_Day!=pRTCArrayTime[3])
+	{
+		alarms=Read_Byte_From_EEPROM(0x00);
+		for(i=1;i<=alarms;i++)
+		{
+			Write_Byte_To_EEPROM((Alarm_Memory+1+((i-1)*6)),0);
+		}
+	}
+	Prev_Day=pRTCArrayTime[3];
+}
+	
