@@ -440,3 +440,145 @@ void Lcd_Write_String(char *a)
 	for(i=0;a[i]!='\0';i++)
 	 Lcd_Write_Char(a[i]);
 }
+void DisplayTimeToLCD( unsigned char* pTimeArray )	 // Displays time in HH:MM:SS AM/PM format
+{
+	//pTimeArray=pRTCArrayTime;
+	Lcd_Set_Cursor(2,0);
+	// Display Hour
+	Lcd_Write_Char( (pTimeArray[2]/10)+0x30 );
+	Lcd_Write_Char( (pTimeArray[2]%10)+0x30 );
+
+	//Display ':'
+	Lcd_Write_Char(':');
+
+	//Display Minutes
+	Lcd_Write_Char( (pTimeArray[1]/10)+0x30 );
+	Lcd_Write_Char( (pTimeArray[1]%10)+0x30 );
+
+	//Display ':'
+	Lcd_Write_Char(':');
+
+	//Display Seconds
+	Lcd_Write_Char( (pTimeArray[0]/10)+0x30 );
+	Lcd_Write_Char( (pTimeArray[0]%10)+0x30 );
+
+	//Display Space
+	Lcd_Write_Char(' ');
+
+	// Display mode
+	/*
+	switch(pTimeArray[3])
+	{
+	case AM_Time:	Lcd_Write_String("AM");	break;
+	case PM_Time:	Lcd_Write_String("PM");	break;
+
+	default: Lcd_Write_Char('H');	break;
+	}
+	*/
+	Temp = (unsigned char)pTimeArray[4]+48;
+	switch(pTimeArray[4])
+	{
+	case Sunday:	Lcd_Write_String("SUN");	break;
+	case Monday:	Lcd_Write_String("MON");	break;
+	case Tuesday:	Lcd_Write_String("TUE");	break;
+	case Wednesday:	Lcd_Write_String("WED");	break;
+	case Thursday:	Lcd_Write_String("THU");	break;
+	case Friday:	Lcd_Write_String("FRI");	break;
+	case Saturday:	Lcd_Write_String("SAT");	break;
+
+	/*default: 	{Lcd_Write_String("?");
+						Lcd_Write_Char(pTimeArray[4]+48);	break;}*/
+	}
+}
+
+void DisplayDateToLCD(unsigned char* pDateArray )	 // Displays Date in DD:MM:YY @ Day format
+{
+	Lcd_Set_Cursor(2,8);
+
+	// Display Date
+	Lcd_Write_Char( (pDateArray[1]/10)+0x30 );
+	Lcd_Write_Char( (pDateArray[1]%10)+0x30 );
+
+	//Display '/'
+	Lcd_Write_Char('/');
+
+	//Display Month
+	Lcd_Write_Char( (pDateArray[2]/10)+0x30 );
+	Lcd_Write_Char( (pDateArray[2]%10)+0x30 );
+
+	//Display '/'
+	Lcd_Write_Char('/');
+
+	//Display Year
+	Lcd_Write_Char( (pDateArray[3]/10)+0x30 );
+	Lcd_Write_Char( (pDateArray[3]%10)+0x30 );
+
+	//Display Space
+	Lcd_Write_Char(' ');
+
+
+	// Display Day
+
+}
+
+
+void DisplayAlarmToLCD( unsigned char* pAlarmArray )	 // Displays time in HH:MM:SS AM/PM format
+{
+	Lcd_Set_Cursor(1,0);
+	// Display Hour
+	Lcd_Write_Char( (pAlarmArray[2]/10)+0x30 );
+	Lcd_Write_Char( (pAlarmArray[2]%10)+0x30 );
+
+	//Display ':'
+	Lcd_Write_Char(':');
+
+	//Display Minutes
+	Lcd_Write_Char( (pAlarmArray[1]/10)+0x30 );
+	Lcd_Write_Char( (pAlarmArray[1]%10)+0x30 );
+
+	//Display ':'
+	//Lcd_Write_Char(':');
+
+	//Display Seconds
+//	Lcd_Write_Char( (pAlarmArray[3]/10)+0x30 );
+//	Lcd_Write_Char( (pAlarmArray[3]%10)+0x30 );
+
+	//Display Space
+	Lcd_Write_Char(' ');
+
+	switch(pAlarmArray[3])
+	{
+		case 1:	Lcd_Write_String("Everyday  ");	break;
+		case 2:	Lcd_Write_String("Every2days");	break;
+		case 3:	Lcd_Write_String("Every3days");	break;
+		case 4:	Lcd_Write_String("Every4days");	break;
+		case 5:	Lcd_Write_String("Every5days");	break;
+		case 6:	Lcd_Write_String("Every6days");	break;
+		case 7:	Lcd_Write_String("Every7days");	break;
+
+		default: Lcd_Write_String("???");	break;
+	}
+	
+	Lcd_Set_Cursor(2,0);
+
+	Lcd_Write_String(" B1-");
+
+	Lcd_Write_Char( (pAlarmArray[4]/10)+0x30 );
+	Lcd_Write_Char( (pAlarmArray[4]%10)+0x30 );
+
+	Lcd_Write_String(" B2-");
+
+	Lcd_Write_Char( (pAlarmArray[5]/10)+0x30 );
+	Lcd_Write_Char( (pAlarmArray[5]%10)+0x30 );
+
+	// Display mode
+	/*
+	switch(pTimeArray[3])
+	{
+	case AM_Time:	Lcd_Write_Char("AM");	break;
+	case PM_Time:	Lcd_Write_Char("PM");	break;
+
+	default: Lcd_Write_Char('H');	break;
+	}
+	*/
+}
