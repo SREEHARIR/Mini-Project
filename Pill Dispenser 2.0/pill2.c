@@ -1088,3 +1088,97 @@ void Read_Bytes_From_EEPROM(unsigned char Address, unsigned char* pData, unsigne
 	Set_SDA_High;				// Make SDA high
 	__delay_us(HalfBitDelay);	// Half bit delay
 }
+void Get_EEPROM_Alarm(int Alarm_Num)
+{
+	/*
+ Function Purpose: Get_EEPROM_Alarm returns current time from RTC registers.
+ Pointer to pRTCArray is returned, in this array
+ pRTCArray[3] can have a value AM_Time or PM_Time	or TwentyFourHoursMode only.
+ pRTCArray[2] (Hours byte) can have value from 0 to 23 only.
+ pRTCArray[1] (Mins byte) can have value from 0 to 59 only.
+ pRTCArray[0] (Secs byte) can have value from 0 to 59 only.
+	*/
+
+	// Read Hours, Mins, Secs register from RTC
+	Read_Bytes_From_EEPROM(Alarm_Memory+1+((Alarm_Num-1)*6), pAlarmArray, 6);
+
+	// Convert Secs back from BCD into number
+
+	Temp = pAlarmArray[0];
+	pAlarmArray[0] = ((Temp>>4)*10 + (Temp&0x0F));
+
+	// Convert Mins back from BCD into number
+	Temp = pAlarmArray[1];
+	pAlarmArray[1] = ((Temp>>4)*10 + (Temp&0x0F));
+
+	Temp = pAlarmArray[2];
+	pAlarmArray[2] = ((Temp>>4)*10 + (Temp&0x0F));
+
+	Temp = pAlarmArray[3];
+	pAlarmArray[3] = ((Temp>>4)*10 + (Temp&0x0F));
+
+	Temp = pAlarmArray[4];
+	pAlarmArray[4] = ((Temp>>4)*10 + (Temp&0x0F));
+
+	Temp = pAlarmArray[5];
+	pAlarmArray[5] = ((Temp>>4)*10 + (Temp&0x0F));
+
+/*
+	// Convert Hours back from BCD into number
+	if(pAlarmArray[2]&0x40)	// if 12 hours mode
+	{
+		if(pAlarmArray[2]&0x20)	// if PM Time
+			pAlarmArray[3] = PM_Time;
+		else		// if AM time
+			pAlarmArray[3] = AM_Time;
+
+		Temp = pAlarmArray[2];
+		pAlarmArray[2] = ((Temp&0x1F)>>4)*10 + (Temp&0x0F);
+	}
+	else		// if 24 hours mode
+	{
+		Temp = pAlarmArray[2];
+		pAlarmArray[2] = (Temp>>4)*10 + (Temp&0x0F);
+		pAlarmArray[3] = TwentyFourHoursMode;
+	}
+*/
+	//return pAlarmArray;
+
+}
+
+void Add_EEPROM_Alarm(unsigned char* pData)
+{
+	alarms=Read_Byte_From_EEPROM(Alarm_Memory);
+/*
+	pAlarmArray[0] = (((unsigned char)(pData[0]/10))<<4)|((unsigned char)(pData[0]%10));
+	pAlarmArray[1] = (((unsigned char)(pData[1]/10))<<4)|((unsigned char)(pData[1]%10));
+	pAlarmArray[2] = (((unsigned char)(pData[2]/10))<<4)|((unsigned char)(pData[2]%10));
+	pAlarmArray[3] = (((unsigned char)(pData[3]/10))<<4)|((unsigned char)(pData[3]%10));
+	pAlarmArray[4] = (((unsigned char)(pData[4]/10))<<4)|((unsigned char)(pData[4]%10));
+	pAlarmArray[5] = (((unsigned char)(pData[5]/10))<<4)|((unsigned char)(pData[5]%10));
+*/
+	Write_Bytes_To_EEPROM((Alarm_Memory+1+(alarms*6)),pData,6);
+	alarms++;
+	Write_Byte_To_EEPROM(Alarm_Memory,alarms);
+
+
+}
+
+void Delete_EEPROM_Alarm(int Alarm_Num)
+{
+	alarms=Read_Byte_From_EEPROM(Alarm_Memory);
+	for(i=Alarm_Num;i<alarms;i++)
+	{
+	Read_Bytes_From_EEPROM((Alarm_Memory+1+((Alarm_Num+i-1+1)*6)), pAlarmArray, 6);
+	Write_Bytes_To_EEPROM((Alarm_Memory+1+((Alarm_Num+i-1)*6)), pAlarmArray, 6);
+	}
+	alarms--;
+	Write_Byte_To_EEPROM(Alarm_Memory,alarms);
+
+	//Write_Bytes_To_EEPROM((Alarm_Memory+1+(alarms*4)),pData,4);
+	//Write_Byte_To_EEPROM(Alarm_Memory,alarms);
+}
+
+
+
+
