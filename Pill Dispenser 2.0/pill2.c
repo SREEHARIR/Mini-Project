@@ -1179,6 +1179,515 @@ void Delete_EEPROM_Alarm(int Alarm_Num)
 	//Write_Byte_To_EEPROM(Alarm_Memory,alarms);
 }
 
+void functions()
+{
+	int change=0;
+	if(fn==0)
+	{
+		return;
+	}
+	Get_RTC_Time();
+	if(fn==1)
+	{
+		Lcd_Clear();
+		Lcd_Set_Cursor(1,0);
+		Lcd_Write_String("SET TIME");
+		DisplayTimeToLCD(pRTCArrayTime);
+		fn2=0;
+		change=0;
+		while(1)
+		{
+			if(change!=0)
+			{
+				fn++;
+				change=0;
+				Lcd_Set_Cursor(2,0);
+				Lcd_Write_String("   Time Saved   ");
+				delay(40);				
+				break;
+			}
+			if(sw_1==1)
+			{
+				while(sw_1==1);
+				fn++;
+				change=0;
+				break;
+			}
+			if(sw_2==1)
+			{
+				while(sw_2==1);
+				if(fn2==0)
+				{
+					//Lcd_Clear();
+					Lcd_Set_Cursor(1,0);
+					Lcd_Write_String("SET TIME - Hour ");
+					dat=0;
+					change=0;
+					while(1)
+					{
+						if(sw_1==1)
+						{
+							while(sw_1==1);
+							fn2++;
+							if(change!=0)
+							{
+								pRTCArrayTime[2]=dat;
+								Set_RTC_Time(pRTCArrayTime[4],pRTCArrayTime[3],pRTCArrayTime[2],pRTCArrayTime[1],pRTCArrayTime[0]);
+								Get_RTC_Time();
+								change=0;
+							}
+							break;
+						}
+						if(sw_2==1)
+						{
+							change=1;
+							while(sw_2==1);
+							dat++;
+							if(dat>=24)
+							{
+								dat=0;
+							}
+								Lcd_Set_Cursor(2,0);
+								Lcd_Write_Char((dat/10)+48);
+								Lcd_Write_Char((dat%10)+48);
+
+						}
+					}
+				}
+				if(fn2==1)
+				{
+					//Lcd_Clear();
+					Lcd_Set_Cursor(1,0);
+					Lcd_Write_String("SET TIME-Minute");
+					//display_time();
+					dat=0;
+					change=0;
+					while(1)
+					{
+						if(sw_1==1)
+						{
+							while(sw_1==1);
+							fn2++;
+							if(change!=0)
+							{
+								pRTCArrayTime[1]=dat;
+								Set_RTC_Time(pRTCArrayTime[4],pRTCArrayTime[3],pRTCArrayTime[2],pRTCArrayTime[1],pRTCArrayTime[0]);
+								Get_RTC_Time();
+								change=0;
+							}
+							break;
+						}
+						if(sw_2==1)
+						{
+							change=1;
+							while(sw_2==1);
+							dat++;
+							if(dat>=60)
+							{
+								dat=0;
+							}
+								//DisplayTimeToLCD(pRTCArrayTime);
+								Lcd_Set_Cursor(2,3);
+								Lcd_Write_Char((dat/10)+48);
+								Lcd_Write_Char((dat%10)+48);
+						}
+					}
+				}
+				if(fn2==2)
+				{
+					//Lcd_Clear();
+					Lcd_Set_Cursor(1,0);
+					Lcd_Write_String("SET TIME - Day  ");
+					//display_time();
+					//Lcd_Set_Cursor(2,9);
+					//Lcd_Write_String("SUN");
+					dat=1;
+					change=0;
+					while(1)
+					{
+						if(sw_1==1)
+						{
+							while(sw_1==1);
+							fn2++;
+							if(change!=0)
+							{
+								pRTCArrayTime[4]=dat;
+								Set_RTC_Time(pRTCArrayTime[4],pRTCArrayTime[3],pRTCArrayTime[2],pRTCArrayTime[1],pRTCArrayTime[0]);
+								Get_RTC_Time();
+								//change=0;
+							}
+							break;
+						}
+						if(sw_2==1)
+						{
+							while(sw_2==1);
+							change=1;
+							dat++;
+							if(dat>=7)
+							{
+								dat=1;
+							}
+							Lcd_Set_Cursor(2,9);
+							switch(dat)
+							{
+								case 1:
+									Lcd_Write_String("SUN");
+									break;
+								case 2:
+									Lcd_Write_String("MON");
+									break;
+								case 3:
+									Lcd_Write_String("TUE");
+									break;
+								case 4:
+									Lcd_Write_String("WED");
+									break;
+								case 5:
+									Lcd_Write_String("THU");
+									break;
+								case 6:
+									Lcd_Write_String("FRI");
+									break;
+								case 7:
+									Lcd_Write_String("SAT");
+									break;
+								default:
+									Lcd_Write_String("ERR");
+									break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if(fn==2)
+	{
+		Lcd_Clear();
+		Lcd_Set_Cursor(1,0);
+		Lcd_Write_String("  ADD ALARMS    ");
+		DisplayTimeToLCD(pRTCArrayTime);
+		dat=0;
+		change=0;
+		while(1)
+		{
+			if(sw_1==1)
+			{
+				while(sw_1==1);
+				fn++;
+				if(change!=0)
+				{
+					change=0;
+					alarms++;
+					pAlarmArray[0]=(0x00);
+					Add_EEPROM_Alarm(pAlarmArray);
+					Lcd_Set_Cursor(2,0);
+					Lcd_Write_String("  ALARM ADDED   ");
+					delay(40);
+				}
+				break;
+			}
+			if(sw_2==1)
+			{
+				while(sw_2==1);
+				change=1;
+				//dat++;
+				dat=0;
+				if(sw_1==1)
+				{
+					while(sw_1==1);
+					i++;
+					break;
+				}
+				if(sw_2==1)
+				{
+					while(sw_2==1);
+					fn2=0;
+					if(fn2==0)
+					{
+						Lcd_Set_Cursor(2,12);
+						Lcd_Write_String("Hour");
+						Lcd_Set_Cursor(2,0);
+						Lcd_Write_String("00:00       ");
+						dat=0;
+						//change=0;
+						while(1)
+						{
+							if(sw_1==1)
+							{
+								while(sw_1==1);
+								fn2++;
+								//if(change!=0)
+								{
+									//dat_bcd=((dat/10)<<4)+((dat%10));
+									//timchk[2]=dat_bcd;
+									//save_i2c(rtc,hr,dat);
+									pAlarmArray[2]=((((dat/10))<<4)+((dat%10)));
+									//change=0;
+								}
+								break;
+							}
+							if(sw_2==1)
+							{
+								//change=1;
+								while(sw_2==1);
+								dat++;
+								if(dat>=24)
+								{
+									dat=0;
+								}
+								Lcd_Set_Cursor(2,0);
+								Lcd_Write_Char((dat/10)+48);
+								Lcd_Write_Char((dat%10)+48);
+							}
+						}
+					}
+					if(fn2==1)
+					{
+						Lcd_Set_Cursor(2,12);
+						Lcd_Write_String("Min ");
+						Lcd_Set_Cursor(2,3);
+						Lcd_Write_String("00  ");
+						dat=0;
+						//change=0;
+						while(1)
+						{
+							if(sw_1==1)
+							{
+								while(sw_1==1);
+								fn2++;
+								//if(change!=0)
+								{
+									//dat_bcd=((dat/10)<<4)+((dat%10));
+									//timchk[1]=dat_bcd;
+									//save_i2c(rtc,min,dat);
+									pAlarmArray[1]=((((dat/10))<<4)+((dat%10)));
+									//change=0;
+								}
+								break;
+							}
+							if(sw_2==1)
+							{
+								//change=1;
+								while(sw_2==1);
+								dat++;
+								if(dat>=60)
+								{
+									dat=0;
+								}
+								Lcd_Set_Cursor(2,3);
+								Lcd_Write_Char((dat/10)+48);
+								Lcd_Write_Char((dat%10)+48);
+							}
+						}
+					}
+					if(fn2==2)
+					{
+						Lcd_Set_Cursor(2,12);
+						Lcd_Write_String("Day   ");
+						Lcd_Set_Cursor(2,0);
+						Lcd_Write_String("Everyday    ");
+						dat=1;
+						//change=0;
+						while(1)
+						{
+							if(sw_1==1)
+							{
+								while(sw_1==1);
+								fn2++;
+								//if(change!=0)
+								{
+									//dat_bcd=((dat/10)<<4)+((dat%10));
+									//timchk[3]=dat_bcd;
+									//save_i2c(rtc,day,dat);
+									pAlarmArray[3]=((((dat/10))<<4)+((dat%10)));
+									//change=0;
+								}
+								break;
+							}
+							if(sw_2==1)
+							{
+								//change=1;
+								while(sw_2==1);
+								dat++;
+								if(dat>=7)
+								{
+									dat=1;
+								}
+								Lcd_Set_Cursor(2,0);
+								switch(dat)
+								{
+									case 1:
+										Lcd_Write_String("Everyday    ");
+										break;
+									case 2:
+										Lcd_Write_String("Every 2 Days");
+										break;
+									case 3:
+										Lcd_Write_String("Every 3 Days");
+										break;
+									case 4:
+										Lcd_Write_String("Every 4 Days");
+										break;
+									case 5:
+										Lcd_Write_String("Every 5 Days");
+										break;
+									case 6:
+										Lcd_Write_String("Every 6 Days");
+										break;
+									case 7:
+										Lcd_Write_String("Every 7 Days");
+										break;
+									default:
+										Lcd_Write_String("ERR         ");
+										break;
+								}
+							}
+						}
+					}
+					if(fn2==3)
+					{
+						Lcd_Set_Cursor(2,0);
+						Lcd_Write_String("Box 1 Turns  ");
+						Lcd_Set_Cursor(2,13);
+						Lcd_Write_String("00 ");
+						dat=0;
+						//change=0;
+						while(1)
+						{
+							if(sw_1==1)
+							{
+								while(sw_1==1);
+								fn2++;
+								//if(change!=0)
+								{
+									//dat_bcd=((dat/10)<<4)+((dat%10));
+									//timchk[0]=(dat_bcd<<4);
+									//save_i2c(rtc,min,dat);
+									pAlarmArray[4]=((((dat/10))<<4)+((dat%10)));
+									//change=0;
+								}
+								break;
+							}
+							if(sw_2==1)
+							{
+								//change=1;
+								while(sw_2==1);
+								dat++;
+								if(dat>=11)
+								{
+									dat=0;
+								}
+								Lcd_Set_Cursor(2,13);
+								Lcd_Write_Char((dat/10)+48);
+								Lcd_Write_Char((dat%10)+48);
+							}
+						}
+					}
+
+					if(fn2==4)
+					{
+						Lcd_Set_Cursor(2,0);
+						Lcd_Write_String("Box 2 Turns  ");
+						Lcd_Set_Cursor(2,13);
+						Lcd_Write_String("00 ");
+						dat=0;
+						//change=0;
+						while(1)
+						{
+							if(sw_1==1)
+							{
+								while(sw_1==1);
+								fn2++;
+								//if(change!=0)
+								{
+									//dat_bcd=((dat/10)<<4)+((dat%10));
+									//timchk[0]+=(dat_bcd);
+									//save_i2c(rtc,min,dat);
+									pAlarmArray[5]=((((dat/10))<<4)+((dat%10)));
+									//change=0;
+								}
+								break;
+							}
+							if(sw_2==1)
+							{
+								//change=1;
+								while(sw_2==1);
+								dat++;
+								if(dat>=11)
+								{
+									dat=0;
+								}
+								Lcd_Set_Cursor(2,13);
+								Lcd_Write_Char((dat/10)+48);
+								Lcd_Write_Char((dat%10)+48);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if(fn==3)
+	{
+		Lcd_Clear();
+		Lcd_Set_Cursor(1,0);
+		Lcd_Write_String(" REMOVE ALARMS  ");
+		alarms=Read_Byte_From_EEPROM(Alarm_Memory);
+		dat=0;
+		while(1)
+		{
+			if(sw_1==1)
+			{
+				while(sw_1==1);
+				fn++;
+				break;
+			}
+			if(sw_2==1)
+			{
+				while(sw_2==1);
+				dat++;
+				if(alarms==0)
+				{
+					Lcd_Set_Cursor(2,0);
+					Lcd_Write_String(" No Alarms SET  ");
+					delay(40);
+					break;
+				}
+				for(i=1;i<=alarms;i++)
+				{
+					Get_EEPROM_Alarm(i);
+					DisplayAlarmToLCD(pAlarmArray);
+					while(1)
+					{
+						if(sw_1==1)
+						{
+							while(sw_1==1);
+							break;
+						}
+						if((sw_2)==1)
+						{
+							while(sw_2==1);
+							Delete_EEPROM_Alarm(i);
+							alarms--;
+							Lcd_Set_Cursor(2,0);
+							Lcd_Write_String(" Alarm Removed  ");
+							delay(40);
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+	//sort();
+	//if(fn>=4)
+	{
+		fn=0;
+	}
+	Lcd_Clear();
+}
+
 
 
 
