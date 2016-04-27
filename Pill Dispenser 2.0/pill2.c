@@ -1688,6 +1688,149 @@ void functions()
 	Lcd_Clear();
 }
 
+void Refresh_New_Day(void)
+{
+	if(Prev_Day!=pRTCArrayTime[3])
+	{
+		alarms=Read_Byte_From_EEPROM(0x00);
+		for(i=1;i<=alarms;i++)
+		{
+			Write_Byte_To_EEPROM((Alarm_Memory+1+((i-1)*6)),0);
+		}
+	}
+	Prev_Day=pRTCArrayTime[3];
+}
+		
+void main()
+{
+	//unsigned char ch,chr;//[16]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
+	//unsigned char ch[16];
+	InitI2C();	// Initialize i2c pins
+	Lcd_Init();
+	delay(100);
+	Lcd_Clear();
+	Lcd_Set_Cursor(1,0);
+	Lcd_Write_String(" Pill Dispenser ");
+	fn=0;
+	alarms=0;
+	//Set_RTC_Time(Sunday, TwentyFourHoursMode, 12 , 34, 00 );	// Set time 08:32:59 AM
+	//Set_RTC_Date(8, 7, 65); 	// Set 02-11-2012 @ Friday
+	//startRTC();
+	Prev_Day=0;
+
+	//wipe();
+	//if(isRTCStopped()){
+	//	Lcd_Set_Cursor(2,14);
+	//	Lcd_Write_String("1");
+		//startRTC();
+		//stopRTC();
+	//}
+	//else{
+	//	Lcd_Set_Cursor(2,14);
+	//	Lcd_Write_String("0");
+		//stopRTC();
+	//}
+
+	/*
+	Write_Bytes_To_EEPROM(0x00,ch,16);
+	for(i=0;i<16;i++)
+	{
+		ch[i]='q';
+	}
+
+	Read_Bytes_From_EEPROM(0x00,ch,16);
+	for(i=0;i<16;i++)
+	{
+		Lcd_Write_Char(ch[i]);
+	}
+	*/
+	/*
+
+	Write_Byte_To_EEPROM(0x00,0x00);
+
+
+/*
+	Write_Byte_To_EEPROM(0x00,0x00);
+	pAlarmArray[0]=0x00;
+	pAlarmArray[1]=0x09;
+	pAlarmArray[2]=0x04;
+	pAlarmArray[3]=0x01;
+	pAlarmArray[4]=0x02;
+	pAlarmArray[5]=0x01;
+
+	Add_EEPROM_Alarm(pAlarmArray);
+	Get_EEPROM_Alarm(1);
+	DisplayAlarmToLCD(pAlarmArray);
+	delay(100);
+*/
+	//i=0;
+	//Write_Byte_To_EEPROM(0x00,i);
+	/*ch = '0';
+	while(1){
+	Lcd_Set_Cursor(2,0);
+	Lcd_Write_Char(chr+48);
+	Lcd_Set_Cursor(2,4);
+	Lcd_Write_Char(j+48);
+		i++;
+		ch++;
+		Write_Byte_To_EEPROM(0x00,i);
+		Write_Byte_To_EEPROM(0x01,ch);
+		j=Read_Byte_From_EEPROM(0x00);
+		chr=Read_Byte_From_EEPROM(0x01);
+		delay(10);
+	}
+*/
+
+
+
+
+	while(1)
+	{
+		//Lcd_Clear();
+		Lcd_Set_Cursor(1,0);
+		Lcd_Write_String(" Pill Dispenser ");
+		//Lcd_Set_Cursor(1,15);
+		//Lcd_Write_Char(fn+48);
+		//for(i=0;i<100;i++)
+		Get_RTC_Time();
+		DisplayTimeToLCD(pRTCArrayTime);
+		Refresh_New_Day();
+		check_alarm();
+		//motor(1,1);
+		if(sw_1 == 1)
+		{
+			while(sw_1==1);
+			fn++;
+			//Lcd_Set_Cursor(1,10);
+			//Lcd_Write_Char(fn+48);
+			//delay(100);
+
+			functions();
+			fn=0;
+			fn2=0;
+		}
+	}
+	/*
+
+
+	while(1)
+	{
+		Lcd_Set_Cursor(2,0);
+		ch=read_i2c(rtc,hr);
+		Lcd_Write_Char(ch/16+48);
+		Lcd_Write_Char(ch%16+48);
+		Lcd_Write_Char('-');
+		ch=read_i2c(rtc,min);
+		Lcd_Write_Char(ch/16+48);
+		Lcd_Write_Char(ch%16+48);
+		Lcd_Write_Char('-');
+		ch=read_i2c(rtc,sec);
+		Lcd_Write_Char(ch/16+48);
+		Lcd_Write_Char(ch%16+48);
+	}
+	*/
+}
+
 
 
 
